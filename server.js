@@ -10,6 +10,7 @@ app.use('/api', require('./routes/data'));      // GET /api/data (ข้อม�
 app.use('/api', require('./routes/products'));  // สินค้า
 app.use('/api', require('./routes/lots'));      // ล็อตสินค้า
 app.use('/api', require('./routes/sales'));     // ยอดขาย
+app.use('/api', require('./routes/records'));   // บันทึกใบสั่งซื้อ โปรโมชั่น ผลพยากรณ์ ผลจัดกลุ่ม
 
 app.listen(process.env.PORT, () =>
   console.log(`เปิดเว็บที่ http://localhost:${process.env.PORT}`));
