@@ -18,15 +18,15 @@ Pages.overview = {
 
     // ---- รายการสิ่งที่ต้องทำ เรียงตามความเร่งด่วน (sev น้อย = เร่งด่วนกว่า) ----
     const todo = [];
-    expired.forEach(r => todo.push({ sev: 0, color: 'red', go: 'expiry',
+    expired.forEach(r => todo.push({ sev: 0, color: 'red', tag: 'นำออกจากชั้น', go: 'expiry',
       title: `นำ ${r.product.name} ล็อต #${r.lot.id} ออกจากชั้น`, detail: `หมดอายุแล้ว ${App.fmt(r.lot.qty_remaining)} ${r.product.unit}` }));
-    orderToday.sort((a, b) => a.pl.days - b.pl.days).forEach(({ p, pl }) => todo.push({ sev: 1, color: 'red', go: 'order',
+    orderToday.sort((a, b) => a.pl.days - b.pl.days).forEach(({ p, pl }) => todo.push({ sev: 1, color: 'red', tag: 'สั่งวันนี้', go: 'order',
       title: `สั่งซื้อ ${p.name} วันนี้ ${App.fmt(pl.qty)} ${p.unit}`,
       detail: `สต็อก ${App.fmt(pl.stock)} ต่ำกว่าจุดสั่งซื้อ (ROP ${App.fmt(pl.rop, 1)}) · ของถึงใน ${p.lead_time_days} วัน` }));
-    risky.forEach(r => todo.push({ sev: r.discountPct >= 50 ? 1 : 2, color: r.discountPct >= 50 ? 'red' : 'orange', go: 'expiry',
+    risky.forEach(r => todo.push({ sev: r.discountPct >= 50 ? 1 : 2, color: r.discountPct >= 50 ? 'red' : 'orange', tag: r.action, go: 'expiry',
       title: `จัดโปร ${r.product.name} ล็อต #${r.lot.id}${r.promoPrice !== null ? ` ${r.action} เหลือ ${App.fmt(r.promoPrice)} บาท` : ''}`,
       detail: `ขายไม่ทัน ${App.fmt(r.unsold)} จาก ${App.fmt(r.lot.qty_remaining)} ${r.product.unit} (เหลือ ${r.lot.days_left} วัน)${r.promoPrice !== null ? ` · เริ่มโปร ${hh(r.startHour)}` : ''}` }));
-    plans.filter(x => x.pl.days >= 1 && x.pl.days <= 3).sort((a, b) => a.pl.days - b.pl.days).forEach(({ p, pl }) => todo.push({ sev: 2, color: 'orange', go: 'order',
+    plans.filter(x => x.pl.days >= 1 && x.pl.days <= 3).sort((a, b) => a.pl.days - b.pl.days).forEach(({ p, pl }) => todo.push({ sev: 2, color: 'orange', tag: 'เตรียมสั่ง', go: 'order',
       title: `เตรียมสั่ง ${p.name} ภายใน ${pl.days} วัน (${App.shortDate(pl.orderDate)})`,
       detail: `สต็อก ${App.fmt(pl.stock)} · ROP ${App.fmt(pl.rop, 1)} · จำนวนที่ควรสั่ง ${App.fmt(pl.qty)} ${p.unit}` }));
     todo.sort((a, b) => a.sev - b.sev);
@@ -45,10 +45,10 @@ Pages.overview = {
       </div>
       <div class="grid cols-2">
         <div class="card"><h3>สิ่งที่ต้องทำ (เรียงตามความเร่งด่วน)</h3>
-          ${todo.length ? `<ul class="todo">${todo.map(t => `<li><span class="dot ${t.color}"></span><div><a href="#${t.go}" data-go="${t.go}" style="color:inherit;text-decoration:none"><b>${App.esc(t.title)}</b></a><br><span class="muted">${App.esc(t.detail)}</span></div></li>`).join('')}</ul>` : '<p class="muted">วันนี้ไม่มีงานเร่งด่วน</p>'}
+          ${todo.length ? todo.map(t => `<div class="task"><span class="badge ${t.color}">${App.esc(t.tag)}</span><div><div class="t">${App.esc(t.title)}</div><div class="d">${App.esc(t.detail)}</div></div><button type="button" class="btn secondary go" data-go="${t.go}">ดูรายละเอียด</button></div>`).join('') : '<p class="muted">วันนี้ไม่มีงานเร่งด่วน</p>'}
         </div>
         <div class="card"><h3>Key Insights</h3>
-          <ul class="todo">${insights.map(i => `<li><span class="dot blue"></span><div>${i}</div></li>`).join('')}</ul>
+          <ul class="insights">${insights.map((i, n) => `<li><span class="ic">${n + 1}</span><div>${i}</div></li>`).join('')}</ul>
         </div>
       </div>
       <div class="card"><h3>สถานะสต็อกรายสินค้า</h3><div class="table-wrap">
@@ -56,9 +56,9 @@ Pages.overview = {
         ${plans.map(({ p, pl }) => {
           const cover = pl.d > 0 ? pl.stock / pl.d : 0;
           const pct = Math.min(100, pl.stock / (pl.rop * 3) * 100), mark = 100 / 3;
-          const col = { red: 'var(--red)', orange: 'var(--orange)', green: 'var(--green)' }[pl.status];
+          const col = { red: 'var(--crit)', orange: 'var(--warn)', green: 'var(--ok)' }[pl.status];
           return `<tr><td>${App.esc(p.name)}</td><td>${App.fmt(pl.stock)} ${App.esc(p.unit)}</td><td>${App.fmt(pl.rop, 1)}</td><td>${App.fmt(cover, 1)}</td>
-            <td><div style="position:relative;height:10px;background:#eceff2;border-radius:5px"><div style="height:10px;width:${pct}%;background:${col};border-radius:5px"></div>
+            <td><div style="position:relative;height:10px;background:var(--line);border-radius:5px"><div style="height:10px;width:${pct}%;background:${col};border-radius:5px"></div>
               <div title="ROP" style="position:absolute;left:${mark}%;top:-3px;width:2px;height:16px;background:var(--ink)"></div></div></td>
             <td><span class="badge ${pl.status}">${pl.days <= 0 ? 'สั่งวันนี้' : `อีก ${pl.days} วัน`}</span></td></tr>`;
         }).join('')}
@@ -66,7 +66,7 @@ Pages.overview = {
         <p class="muted" style="margin:8px 0 0">แถบสีคือสต็อกปัจจุบัน เส้นดำคือจุดสั่งซื้อ (ROP) — ถ้าแถบสั้นกว่าเส้นดำ ต้องสั่งซื้อทันที</p>
       </div>`;
 
-    root.querySelectorAll('[data-go]').forEach(a => a.onclick = e => { e.preventDefault(); App.show(a.dataset.go); });
+    root.querySelectorAll('[data-go]').forEach(a => a.onclick = () => App.show(a.dataset.go));
   },
 
   // สร้างข้อความ Key Insights จากข้อมูล (แต่ละข้อคำนวณจริง ไม่ใช่ข้อความตายตัว)

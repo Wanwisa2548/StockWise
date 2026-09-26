@@ -62,10 +62,11 @@ Pages.forecast = {
       const pad = new Array(fc.future.length).fill(null);
       $('#f-chart').innerHTML = Charts.line({
         labels, splitAt: d.dates.length,
+        band: { from: d.dates.length, lo: fc.d - Calc.Z[S.serviceLevel] * m.rmse, hi: fc.d + Calc.Z[S.serviceLevel] * m.rmse },
         series: [
-          { name: 'ยอดขายจริง', color: '#1c2733', values: series.concat(pad), width: 1.8 },
-          { name: 'ค่าพยากรณ์ย้อนหลัง (backtest)', color: '#0f766e', values: fc.fitted.concat(pad), width: 2 },
-          { name: 'พยากรณ์ 14 วันข้างหน้า', color: '#d97706', dash: '6 4', width: 2.5,
+          { name: 'ยอดขายจริง', color: 'var(--chart-actual)', values: series.concat(pad), width: 1.8 },
+          { name: 'ค่าพยากรณ์ย้อนหลัง (backtest)', color: 'var(--accent)', values: fc.fitted.concat(pad), width: 2.5 },
+          { name: 'พยากรณ์ 14 วันข้างหน้า', color: 'var(--accent)', dash: '6 5', width: 2.5,
             values: new Array(series.length - 1).fill(null).concat([series[series.length - 1]], fc.future) }
         ]
       });

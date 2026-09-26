@@ -67,9 +67,9 @@ Pages.order = {
       $('#o-chart').innerHTML = Charts.line({
         labels, fmt: v => App.fmt(v),
         series: [
-          { name: 'สต็อกคงเหลือ', color: '#1c2733', values: sim.level, width: 2.2 },
-          { name: `ROP (${App.fmt(pl.rop, 1)})`, color: '#c62828', dash: '6 4', values: flat(pl.rop) },
-          { name: `Safety Stock (${App.fmt(pl.safety, 1)})`, color: '#d97706', dash: '2 3', values: flat(pl.safety) }
+          { name: 'สต็อกคงเหลือ', color: 'var(--accent)', values: sim.level, width: 2.2 },
+          { name: `ROP (${App.fmt(pl.rop, 1)})`, color: 'var(--warn)', dash: '6 4', values: flat(pl.rop) },
+          { name: `Safety Stock (${App.fmt(pl.safety, 1)})`, color: 'var(--crit)', dash: '2 3', values: flat(pl.safety) }
         ]
       });
       $('#o-orders').innerHTML = sim.orders.length

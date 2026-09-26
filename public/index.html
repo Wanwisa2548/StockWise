@@ -3,22 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>StockWise</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <span class="logo">SW</span>
-      <div>
-        <h1>StockWise</h1>
-        <p>วางแผนสต็อกมินิมาร์ท ลดต้นทุนจมและของเสีย</p>
+    <div class="topbar-in">
+      <div class="brand">
+        <span class="eyebrow">SDG 12 · ลดต้นทุนจมและของเสีย</span>
+        <h1>StockWise ระบบวางแผนสต็อกมินิมาร์ท</h1>
       </div>
+      <div class="today" id="today-badge"></div>
     </div>
-    <div class="today" id="today-badge"></div>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="เมนู"></nav>
   </header>
-
-  <nav class="tabs" id="tabs" role="tablist"></nav>
   <main id="page" class="page"></main>
 
   <script src="js/calc.js"></script>

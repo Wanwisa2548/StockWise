@@ -1,6 +1,6 @@
 // หน้า 6: จัดกลุ่มสินค้าด้วย K-means
 Pages.cluster = {
-  COLORS: ['#0f766e', '#d97706', '#1d5fa8', '#a13d8f', '#7a8a3a'],
+  COLORS: ['var(--k1)', 'var(--k2)', 'var(--k3)', 'var(--k4)', 'var(--k5)'],
 
   render(root) {
     const d = App.data, S = App.settings;
@@ -38,11 +38,11 @@ Pages.cluster = {
         xLabel: 'ยอดขาย/วัน', yLabel: 'อายุสินค้า (วัน)', width: 560, height: 380,
         points: d.products.map((p, i) => ({ x: r.sales[i], y: r.life[i], label: short(p.name), color: C[r.assign[i]] })),
         centers: r.groups.map(g => ({ x: g.gmSales, y: g.gmLife, color: C[g.id] }))
-      }) + `<div class="legend">${r.groups.map(g => `<span><i style="background:${C[g.id]}"></i>${g.name}</span>`).join('')}<span>◇ จุดศูนย์กลางกลุ่ม</span></div>`;
+      }) + `<div class="legend">${r.groups.map(g => `<span><i class="lg-box" style="background:${C[g.id]}"></i>${g.name}</span>`).join('')}<span>◇ จุดศูนย์กลางกลุ่ม</span></div>`;
 
       $('#c-elbow-chart').innerHTML = Charts.line({
         labels: r.sseByK.map((_, i) => 'k=' + (i + 1)), fmt: v => App.fmt(v, 1), height: 380, width: 560,
-        series: [{ name: 'SSE', color: '#1c2733', values: r.sseByK, width: 2.4 }]
+        series: [{ name: 'SSE', color: 'var(--ink)', values: r.sseByK, width: 2.4 }]
       }) + `<p class="muted">SSE k=1…6: ${r.sseByK.map(v => App.fmt(v, 2)).join(', ')}</p>`;
 
       $('#c-cards').innerHTML = r.groups.map(g => `

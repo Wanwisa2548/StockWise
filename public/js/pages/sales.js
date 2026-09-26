@@ -40,8 +40,8 @@ Pages.sales = {
         <div class="kpi"><div class="label">ยอดขายเฉลี่ยต่อวัน</div><div class="value">${App.fmt(hours.reduce((a, b) => a + b, 0) / nDays, 1)}</div><div class="note">ชิ้น</div></div>`;
       $('#s-bars').innerHTML = Charts.bars({
         labels: hourRange.map(h => String(h)), values: avg,
-        highlight: { [peak - 6]: '#1d5fa8', [start - 6]: '#d97706' }, fmt: v => App.fmt(v, v < 10 ? 1 : 0)
-      }) + `<div class="legend"><span><i style="background:#1d5fa8"></i>ชั่วโมงขายดีที่สุด</span><span><i style="background:#d97706"></i>เวลาเริ่มโปร</span></div>`;
+        color: 'color-mix(in srgb, var(--accent) 55%, var(--surface))', highlight: { [peak - 6]: 'var(--accent)', [start - 6]: 'var(--warn)' }, fmt: v => App.fmt(v, v < 10 ? 1 : 0)
+      }) + `<div class="legend"><span><i class="lg-box" style="background:var(--accent)"></i>ชั่วโมงขายดีที่สุด</span><span><i class="lg-box" style="background:var(--warn)"></i>เวลาเริ่มโปร</span></div>`;
       const mat = Calc.hourlyByWeekday(d, state.pid).map(row => hourRange.map(h => row[h]));
       $('#s-heat').innerHTML = Charts.heatmap({ rowLabels: dowNames, colLabels: hourRange.map(String), matrix: mat });
     }
