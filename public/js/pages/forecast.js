@@ -61,6 +61,7 @@ Pages.forecast = {
       const labels = d.dates.concat(futureDates).map(App.shortDate.bind(App));
       const pad = new Array(fc.future.length).fill(null);
       $('#f-chart').innerHTML = Charts.line({
+        ...Charts.fit($('#f-chart'), 0.36, 260, 460),
         labels, splitAt: d.dates.length,
         band: { from: d.dates.length, lo: fc.d - Calc.Z[S.serviceLevel] * m.rmse, hi: fc.d + Calc.Z[S.serviceLevel] * m.rmse },
         series: [

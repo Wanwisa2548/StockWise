@@ -39,11 +39,12 @@ Pages.sales = {
         <div class="kpi orange"><div class="label">เวลาเริ่มโปรที่เหมาะสม</div><div class="value">${hh(start)}</div><div class="note">หลังจากนี้ยังเหลือยอดขาย ≥ 40% ของวัน</div></div>
         <div class="kpi"><div class="label">ยอดขายเฉลี่ยต่อวัน</div><div class="value">${App.fmt(hours.reduce((a, b) => a + b, 0) / nDays, 1)}</div><div class="note">ชิ้น</div></div>`;
       $('#s-bars').innerHTML = Charts.bars({
+        ...Charts.fit($('#s-bars'), 0.28, 220, 380),
         labels: hourRange.map(h => String(h)), values: avg,
         color: 'color-mix(in srgb, var(--accent) 55%, var(--surface))', highlight: { [peak - 6]: 'var(--accent)', [start - 6]: 'var(--warn)' }, fmt: v => App.fmt(v, v < 10 ? 1 : 0)
       }) + `<div class="legend"><span><i class="lg-box" style="background:var(--accent)"></i>ชั่วโมงขายดีที่สุด</span><span><i class="lg-box" style="background:var(--warn)"></i>เวลาเริ่มโปร</span></div>`;
       const mat = Calc.hourlyByWeekday(d, state.pid).map(row => hourRange.map(h => row[h]));
-      $('#s-heat').innerHTML = Charts.heatmap({ rowLabels: dowNames, colLabels: hourRange.map(String), matrix: mat });
+      $('#s-heat').innerHTML = Charts.heatmap({ width: Charts.fit($('#s-heat'), 1, 300, 300).width, rowLabels: dowNames, colLabels: hourRange.map(String), matrix: mat });
     }
 
     // --- ตัวอย่างรวมเป็นยอดรายวัน ---

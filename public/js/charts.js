@@ -2,6 +2,12 @@
 // สีทั้งหมดใช้ตัวแปร CSS (var(--...)) ผ่านแอตทริบิวต์ style เพื่อให้เปลี่ยนตามธีม/dark mode
 const Charts = {};
 
+// ขนาดกราฟจากความกว้างจริงของกล่องที่จะใส่ (ratio = สูง/กว้าง)
+Charts.fit = function (el, ratio, min, max) {
+  const width = Math.max(300, Math.round(el.clientWidth || 700));
+  return { width, height: Math.round(Math.min(max, Math.max(min, width * ratio))) };
+};
+
 Charts.esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // หาช่วงแกนที่ตัวเลขสวย เช่น 0, 10, 20, 30
@@ -66,8 +72,8 @@ Charts.line = function ({ labels, series, height = 300, width = 760, splitAt = n
 };
 
 // กราฟแท่งแนวตั้ง — highlight = { ดัชนี: สี } เพื่อเน้นแท่งพิเศษ
-Charts.bars = function ({ labels, values, color = 'var(--accent)', highlight = {}, height = 260, fmt = v => v }) {
-  const W = 760, H = height, m = { l: 40, r: 8, t: 20, b: 26 };
+Charts.bars = function ({ labels, values, color = 'var(--accent)', highlight = {}, height = 260, width = 760, fmt = v => v }) {
+  const W = width, H = height, m = { l: 40, r: 8, t: 20, b: 26 };
   const sc = Charts.niceScale(0, Math.max(...values));
   const n = labels.length, slot = (W - m.l - m.r) / n, bw = slot * 0.7;
   const y = v => m.t + (1 - (v - sc.lo) / (sc.hi - sc.lo)) * (H - m.t - m.b);
@@ -85,9 +91,9 @@ Charts.bars = function ({ labels, values, color = 'var(--accent)', highlight = {
 };
 
 // Heatmap: matrix[แถว][คอลัมน์], ยิ่งค่าสูงยิ่งเข้ม (ผสมสี accent กับพื้นการ์ด)
-Charts.heatmap = function ({ rowLabels, colLabels, matrix, fmt = v => v.toFixed(1) }) {
-  const W = 760, m = { l: 34, t: 22, r: 4, b: 4 };
-  const cw = (W - m.l - m.r) / colLabels.length, ch = 30, H = m.t + ch * rowLabels.length + m.b;
+Charts.heatmap = function ({ rowLabels, colLabels, matrix, width = 760, fmt = v => v.toFixed(1) }) {
+  const W = width, m = { l: 34, t: 22, r: 4, b: 4 };
+  const cw = (W - m.l - m.r) / colLabels.length, ch = Math.max(30, Math.min(46, Math.round(W / 34))), H = m.t + ch * rowLabels.length + m.b;
   const max = Math.max(...matrix.flat()) || 1;
   let g = '';
   colLabels.forEach((c, j) => { g += `<text x="${m.l + j * cw + cw / 2}" y="14" text-anchor="middle">${Charts.esc(c)}</text>`; });

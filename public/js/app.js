@@ -95,7 +95,17 @@ const App = {
   // วาดหน้าปัจจุบันใหม่ (ใช้หลังบันทึกข้อมูล)
   refresh() { this.show(this.current); },
 
+  onResize() {
+    if (!this.data || this.current === 'manage') return;
+    clearTimeout(this._rt);
+    this._rt = setTimeout(() => {
+      if (window.innerWidth !== this._w) { this._w = window.innerWidth; const y = window.scrollY; this.refresh(); window.scrollTo(0, y); }
+    }, 200);
+  },
+
   async start() {
+    this._w = window.innerWidth;
+    window.addEventListener('resize', () => this.onResize());
     this.buildTabs();
     const root = document.getElementById('page');
     root.innerHTML = '<div class="loading">กำลังโหลดข้อมูลจากฐานข้อมูล…</div>';

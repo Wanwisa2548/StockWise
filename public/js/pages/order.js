@@ -65,6 +65,7 @@ Pages.order = {
       const labels = sim.level.map((_, i) => App.shortDate(App.addDays(d.today, i)));
       const flat = v => sim.level.map(() => v);
       $('#o-chart').innerHTML = Charts.line({
+        ...Charts.fit($('#o-chart'), 0.32, 240, 420),
         labels, fmt: v => App.fmt(v),
         series: [
           { name: 'สต็อกคงเหลือ', color: 'var(--accent)', values: sim.level, width: 2.2 },

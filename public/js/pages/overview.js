@@ -47,12 +47,12 @@ Pages.overview = {
         <div class="card"><h3>สิ่งที่ต้องทำ (เรียงตามความเร่งด่วน)</h3>
           ${todo.length ? todo.map(t => `<div class="task"><span class="badge ${t.color}">${App.esc(t.tag)}</span><div><div class="t">${App.esc(t.title)}</div><div class="d">${App.esc(t.detail)}</div></div><button type="button" class="btn secondary go" data-go="${t.go}">ดูรายละเอียด</button></div>`).join('') : '<p class="muted">วันนี้ไม่มีงานเร่งด่วน</p>'}
         </div>
+        <div class="col">
         <div class="card"><h3>Key Insights</h3>
           <ul class="insights">${insights.map((i, n) => `<li><span class="ic">${n + 1}</span><div>${i}</div></li>`).join('')}</ul>
         </div>
-      </div>
       <div class="card"><h3>สถานะสต็อกรายสินค้า</h3><div class="table-wrap">
-        <table><thead><tr><th>สินค้า</th><th>สต็อก</th><th>ROP</th><th>พอขายอีก (วัน)</th><th style="min-width:160px">สต็อกเทียบ ROP</th><th>ควรสั่งเมื่อ</th></tr></thead><tbody>
+        <table><thead><tr><th>สินค้า</th><th>สต็อก</th><th>ROP</th><th>พอขาย (วัน)</th><th style="min-width:90px">เทียบ ROP</th><th>ควรสั่งเมื่อ</th></tr></thead><tbody>
         ${plans.map(({ p, pl }) => {
           const cover = pl.d > 0 ? pl.stock / pl.d : 0;
           const pct = Math.min(100, pl.stock / (pl.rop * 3) * 100), mark = 100 / 3;
@@ -64,6 +64,8 @@ Pages.overview = {
         }).join('')}
         </tbody></table></div>
         <p class="muted" style="margin:8px 0 0">แถบสีคือสต็อกปัจจุบัน เส้นดำคือจุดสั่งซื้อ (ROP) — ถ้าแถบสั้นกว่าเส้นดำ ต้องสั่งซื้อทันที</p>
+      </div>
+        </div>
       </div>`;
 
     root.querySelectorAll('[data-go]').forEach(a => a.onclick = () => App.show(a.dataset.go));
