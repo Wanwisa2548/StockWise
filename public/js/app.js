@@ -43,10 +43,7 @@ const App = {
   // yyyy-mm-dd → "26 ก.ย."
   shortDate(s) { return this.thaiDate(s).split(' ').slice(0, 2).join(' '); },
   // บวกวันให้สตริงวันที่
-  addDays(s, n) {
-    const [y, m, d] = s.split('-').map(Number);
-    return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
-  },
+  addDays(s, n) { return Calc.addDays(s, n); },
 
   buildTabs() {
     const nav = document.getElementById('tabs');

@@ -60,4 +60,69 @@ Calc.forecastAll = function (data, settings) {
   return out;
 };
 
+/* ============================================================
+ * 2) แผนการสั่งซื้อ (EOQ, Safety Stock, ROP)
+ * ============================================================ */
+
+// ค่า z ของระดับการให้บริการ (Service Level)
+Calc.Z = { 0.90: 1.28, 0.95: 1.65, 0.99: 2.33 };
+
+// สต็อกคงเหลือรวมของแต่ละสินค้า = ผลรวม qty_remaining ของทุกล็อต → { productId: จำนวน }
+Calc.stockByProduct = function (data) {
+  const out = {};
+  data.products.forEach(p => { out[p.id] = 0; });
+  data.lots.forEach(l => { out[l.product_id] = (out[l.product_id] || 0) + l.qty_remaining; });
+  return out;
+};
+
+// คำนวณแผนสั่งซื้อของสินค้า 1 ชนิด
+//   fc = ผลจาก Calc.forecast (ใช้ d และ σ = RMSE)
+//   opts = { serviceLevel, holdRate, today }
+Calc.plan = function (p, fc, stock, opts) {
+  const d = fc.d;                                   // ยอดขายต่อวันที่พยากรณ์
+  const sigma = fc.metrics.rmse;                    // σ = RMSE
+  const z = Calc.Z[opts.serviceLevel];
+  const D = d * 365;                                // ความต้องการต่อปี
+  const H = p.cost * opts.holdRate;                 // ต้นทุนเก็บรักษาต่อชิ้นต่อปี
+  const eoq = Math.sqrt(2 * D * p.order_cost / H);  // EOQ = √(2DS ÷ H)
+
+  // ถ้า EOQ มากกว่าที่ขายได้ทันในอายุสินค้า ให้จำกัดที่ d × shelf_life (ปัดลง)
+  const cap = d * p.shelf_life_days;
+  const limited = eoq > cap;
+  const qty = limited ? Math.floor(cap) : Math.round(eoq);
+
+  const safety = z * sigma * Math.sqrt(p.lead_time_days);   // Safety Stock = z × σ × √L
+  const rop = d * p.lead_time_days + safety;                // ROP = d × L + Safety Stock
+
+  // จำนวนวันก่อนต้องสั่ง = floor((สต็อก − ROP) ÷ d)
+  const days = d > 0 ? Math.floor((stock - rop) / d) : 999;
+  const status = days <= 0 ? 'red' : days <= 3 ? 'orange' : 'green';
+  const orderDate = opts.today ? Calc.addDays(opts.today, Math.max(days, 0)) : null;
+  return { d, sigma, z, D, H, eoq, cap, limited, qty, safety, rop, stock, days, status, orderDate };
+};
+
+// บวก/ลบวันของสตริง yyyy-mm-dd
+Calc.addDays = function (s, n) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+};
+
+// จำลองสต็อก 30 วัน: ขายวันละ d ชิ้น พอสต็อกลงถึง ROP ก็สั่งครั้งละ qty ชิ้น ของมาถึงหลัง L วัน
+// (ไม่คิดการหมดอายุ ใช้ดูจังหวะการสั่งเท่านั้น)
+Calc.simulateStock = function (plan, leadTime, days = 30) {
+  const level = [plan.stock];
+  const orders = [];                   // { day: วันที่สั่ง, arrive: วันที่ของถึง, qty }
+  let pending = null;
+  for (let t = 0; t < days; t++) {
+    if (!pending && level[t] <= plan.rop && plan.qty > 0) {   // ถึงจุดสั่งซื้อ
+      pending = { day: t, arrive: t + leadTime, qty: plan.qty };
+      orders.push(pending);
+    }
+    let next = Math.max(0, level[t] - plan.d);
+    if (pending && pending.arrive === t + 1) { next += pending.qty; pending = null; }
+    level.push(next);
+  }
+  return { level, orders };
+};
+
 if (typeof module !== 'undefined') module.exports = Calc;
