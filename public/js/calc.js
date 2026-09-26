@@ -221,4 +221,117 @@ Calc.hourlyByWeekday = function (data, productId) {
   return sum.map((row, dow) => row.map(v => days[dow] ? v / days[dow] : 0));
 };
 
+/* ============================================================
+ * 5) จัดกลุ่มสินค้าด้วย K-means
+ * ============================================================ */
+
+// ตัวสุ่มแบบกำหนด seed ได้ (mulberry32) ทำให้ผลจัดกลุ่มเหมือนเดิมทุกครั้งที่รัน
+Calc.rng = function (seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = (t + Math.imul(t ^ t >>> 7, 61 | t)) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+};
+
+// ปรับค่าเป็น z-score: (x − ค่าเฉลี่ย) ÷ ส่วนเบี่ยงเบนมาตรฐานประชากร
+Calc.zscore = function (v) {
+  const m = v.reduce((a, b) => a + b, 0) / v.length;
+  const s = Math.sqrt(v.reduce((a, b) => a + (b - m) ** 2, 0) / v.length) || 1;
+  return v.map(x => (x - m) / s);
+};
+
+// K-means 1 รอบ (เริ่มจุดศูนย์กลางด้วย k-means++) คืน { sse, assign, centers }
+Calc.kmeansOnce = function (pts, k, seed) {
+  const n = pts.length, rand = Calc.rng(seed);
+  const d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+  // k-means++: จุดแรกสุ่ม จุดต่อไปสุ่มโดยให้น้ำหนักตามระยะห่างกำลังสองจากศูนย์กลางที่มีอยู่
+  const centers = [pts[Math.floor(rand() * n)].slice()];
+  while (centers.length < k) {
+    const dist = pts.map(p => Math.min(...centers.map(c => d2(p, c))));
+    let u = rand() * dist.reduce((a, b) => a + b, 0), i = 0;
+    while (i < n - 1 && u > dist[i]) { u -= dist[i]; i++; }
+    centers.push(pts[i].slice());
+  }
+  const assign = new Array(n).fill(-1);
+  for (let iter = 0; iter < 100; iter++) {
+    let changed = false;
+    pts.forEach((p, i) => {                      // จัดแต่ละจุดเข้ากลุ่มที่ใกล้ที่สุด
+      let best = 0;
+      centers.forEach((c, j) => { if (d2(p, c) < d2(p, centers[best])) best = j; });
+      if (assign[i] !== best) { assign[i] = best; changed = true; }
+    });
+    if (!changed) break;
+    for (let j = 0; j < k; j++) {                // ย้ายศูนย์กลางไปที่ค่าเฉลี่ยของกลุ่ม
+      const m = pts.filter((_, i) => assign[i] === j);
+      if (m.length) centers[j] = [m.reduce((s, q) => s + q[0], 0) / m.length, m.reduce((s, q) => s + q[1], 0) / m.length];
+    }
+  }
+  const sse = pts.reduce((s, p, i) => s + d2(p, centers[assign[i]]), 0);   // SSE = ผลรวมระยะกำลังสองในกลุ่ม
+  return { sse, assign, centers };
+};
+
+// รัน 20 รอบแล้วเลือกรอบที่ SSE ต่ำสุด
+Calc.kmeans = function (pts, k) {
+  let best = null;
+  for (let r = 0; r < 20; r++) {
+    const res = Calc.kmeansOnce(pts, k, 1000 + r);
+    if (!best || res.sse < best.sse - 1e-12) best = res;
+  }
+  return best;
+};
+
+// ค่าเฉลี่ยเรขาคณิต
+Calc.geoMean = v => Math.pow(10, v.reduce((s, x) => s + Math.log10(x), 0) / v.length);
+
+// ตั้งชื่อกลุ่มจาก geometric mean ของอายุสินค้า (วัน) และยอดขายต่อวัน
+Calc.clusterName = function (gmLife, gmSales) {
+  if (gmLife <= 5) return 'ของสดอายุสั้นมาก';
+  if (gmLife <= 30) return 'ของสดและแช่เย็น';
+  if (gmSales >= 15) return 'ของแห้งขายเร็ว';
+  return 'ขายช้า มูลค่าต่อชิ้นสูง';
+};
+
+// นโยบายการสต็อกที่แนะนำของแต่ละกลุ่ม
+Calc.clusterPolicy = {
+  'ของสดอายุสั้นมาก': 'สั่งบ่อย ครั้งละน้อย ตรวจอายุทุกวัน จัดโปรตั้งแต่ช่วงบ่าย',
+  'ของสดและแช่เย็น': 'สั่งตาม EOQ แต่จำกัดไม่เกินที่ขายทันในอายุสินค้า ใช้ FIFO และตรวจล็อตใกล้หมดอายุทุกวัน',
+  'ของแห้งขายเร็ว': 'สั่งครั้งละมากเพื่อลดค่าสั่งซื้อ ตั้ง ROP และ Safety Stock ให้แม่น ห้ามของขาด',
+  'ขายช้า มูลค่าต่อชิ้นสูง': 'เก็บสต็อกน้อย สั่งตามจริง ลดเงินจมในสินค้า'
+};
+
+// จัดกลุ่มสินค้าทั้งหมดด้วย k กลุ่ม
+//   ตัวแปร: log10(ยอดขายพยากรณ์ต่อวัน d) และ log10(อายุสินค้า) ปรับเป็น z-score
+//   คืน { pts, sseByK (k=1..6), elbow, groups[] }
+Calc.clusterProducts = function (data, fcs, k) {
+  const P = data.products;
+  const sales = P.map(p => fcs[p.id].d), life = P.map(p => p.shelf_life_days);
+  const x = Calc.zscore(sales.map(Math.log10)), y = Calc.zscore(life.map(Math.log10));
+  const pts = x.map((v, i) => [v, y[i]]);
+
+  const sseByK = [];
+  for (let kk = 1; kk <= 6; kk++) sseByK.push(Calc.kmeans(pts, kk).sse);
+  // elbow = k ที่ผลต่างอันดับสอง (SSE[k−1] − 2·SSE[k] + SSE[k+1]) มากที่สุด
+  let elbow = 2, bestDiff = -Infinity;
+  for (let kk = 2; kk <= 5; kk++) {
+    const diff = sseByK[kk - 2] - 2 * sseByK[kk - 1] + sseByK[kk];
+    if (diff > bestDiff) { bestDiff = diff; elbow = kk; }
+  }
+
+  const res = Calc.kmeans(pts, k);
+  const groups = [];
+  for (let j = 0; j < k; j++) {
+    const idx = res.assign.map((a, i) => a === j ? i : -1).filter(i => i >= 0);
+    if (!idx.length) continue;
+    const gmSales = Calc.geoMean(idx.map(i => sales[i])), gmLife = Calc.geoMean(idx.map(i => life[i]));
+    const name = Calc.clusterName(gmLife, gmSales);
+    groups.push({ name, members: idx.map(i => P[i]), idx, gmSales, gmLife, policy: Calc.clusterPolicy[name] });
+  }
+  groups.sort((a, b) => a.gmLife - b.gmLife);     // เรียงจากอายุสั้นไปยาว
+  groups.forEach((g, i) => { g.id = i; g.idx.forEach(i2 => { res.assign[i2] = i; }); });
+  return { pts, sales, life, assign: res.assign, sseByK, elbow, groups };
+};
+
 if (typeof module !== 'undefined') module.exports = Calc;

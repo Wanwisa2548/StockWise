@@ -18,8 +18,8 @@ Charts.niceScale = function (min, max, ticks = 5) {
 // กราฟเส้น
 //   labels  = ป้ายแกน x, series = [{ name, color, values, dash?, width? }] (null = ไม่วาด)
 //   splitAt = ดัชนีที่เริ่มช่วง "พยากรณ์อนาคต" (ระบายพื้นหลังจางๆ)
-Charts.line = function ({ labels, series, height = 300, splitAt = null, fmt = v => v, yMin = 0 }) {
-  const W = 760, H = height, m = { l: 46, r: 12, t: 12, b: 28 };
+Charts.line = function ({ labels, series, height = 300, width = 760, splitAt = null, fmt = v => v, yMin = 0 }) {
+  const W = width, H = height, m = { l: 46, r: 12, t: 12, b: 28 };
   const all = series.flatMap(s => s.values).filter(v => v !== null && v !== undefined);
   const sc = Charts.niceScale(Math.min(yMin, ...all), Math.max(...all));
   const n = labels.length;
@@ -90,6 +90,35 @@ Charts.heatmap = function ({ rowLabels, colLabels, matrix, fmt = v => v.toFixed(
       g += `<rect x="${m.l + j * cw + 1}" y="${m.t + i * ch + 1}" width="${cw - 2}" height="${ch - 2}" rx="3" fill="${fill}"><title>${Charts.esc(rowLabels[i] + ' ' + colLabels[j])}: ${fmt(v)}</title></rect>` +
            `<text x="${m.l + j * cw + cw / 2}" y="${m.t + i * ch + ch / 2 + 4}" text-anchor="middle" style="fill:${a > 0.55 ? '#fff' : '#1c2733'};font-size:10px">${Math.round(v)}</text>`;
     });
+  });
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
+};
+
+// กราฟกระจาย (แกนเป็น log) — points = [{ x, y, label, color }], centers = [{ x, y, color }]
+Charts.scatterLog = function ({ points, centers = [], xLabel, yLabel, height = 340, width = 760 }) {
+  const W = width, H = height, m = { l: 52, r: 16, t: 14, b: 40 };
+  const lg = Math.log10;
+  const xs = points.map(p => lg(p.x)), ys = points.map(p => lg(p.y));
+  const ext = (v, pad) => [Math.min(...v) - pad, Math.max(...v) + pad];
+  const [x0, x1n] = ext(xs, 0.25), [y0, y1] = ext(ys, 0.25), x1 = x1n + 0.3;
+  const px = v => m.l + (lg(v) - x0) / (x1 - x0) * (W - m.l - m.r);
+  const py = v => m.t + (1 - (lg(v) - y0) / (y1 - y0)) * (H - m.t - m.b);
+  const ticks = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+  let g = '';
+  ticks.filter(t => lg(t) >= x0 && lg(t) <= x1).forEach(t => {
+    g += `<line x1="${px(t)}" x2="${px(t)}" y1="${m.t}" y2="${H - m.b}" stroke="#e1e6eb"/><text x="${px(t)}" y="${H - m.b + 14}" text-anchor="middle">${t}</text>`;
+  });
+  ticks.filter(t => lg(t) >= y0 && lg(t) <= y1).forEach(t => {
+    g += `<line x1="${m.l}" x2="${W - m.r}" y1="${py(t)}" y2="${py(t)}" stroke="#e1e6eb"/><text x="${m.l - 6}" y="${py(t) + 4}" text-anchor="end">${t}</text>`;
+  });
+  g += `<text x="${(m.l + W - m.r) / 2}" y="${H - 6}" text-anchor="middle">${Charts.esc(xLabel)} (สเกล log)</text>` +
+       `<text transform="translate(12 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">${Charts.esc(yLabel)} (สเกล log)</text>`;
+  centers.forEach(c => {
+    g += `<path d="M${px(c.x)},${py(c.y) - 9} l9,9 l-9,9 l-9,-9 z" fill="none" stroke="${c.color}" stroke-width="2"><title>จุดศูนย์กลางกลุ่ม</title></path>`;
+  });
+  points.forEach(p => {
+    g += `<circle cx="${px(p.x)}" cy="${py(p.y)}" r="6" fill="${p.color}"><title>${Charts.esc(p.label)} — ${Charts.esc(xLabel)} ${p.x.toFixed(1)}, ${Charts.esc(yLabel)} ${p.y}</title></circle>` +
+         `<text x="${px(p.x) + 9}" y="${py(p.y) + 4}" style="fill:#1c2733">${Charts.esc(p.label)}</text>`;
   });
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
 };
