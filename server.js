@@ -1,10 +1,14 @@
 require('dotenv').config();
 const express = require('express');
 const { sql, poolPromise } = require('./db');
+const { SIM_TODAY } = require('./config');
 
 const app = express();
 app.use(express.json());
 app.use(express.static('public'));   // เปิดไฟล์ในโฟลเดอร์ public เป็นหน้าเว็บ
+
+// API ข้อมูลรวมสำหรับทุกหน้า
+app.use('/api', require('./routes/data'));
 
 // ดึงสินค้าพร้อมสต็อกคงเหลือ
 app.get('/api/products', async (req, res) => {
@@ -28,7 +32,7 @@ app.get('/api/lots', async (req, res) => {
   try {
     const pool = await poolPromise;
     const r = await pool.request()
-      .input('today', sql.Date, '2026-09-26')
+      .input('today', sql.Date, SIM_TODAY)
       .query(`
         SELECT l.id, p.name, l.qty_remaining,
                l.expiry_date, DATEDIFF(DAY, @today, l.expiry_date) AS days_left
