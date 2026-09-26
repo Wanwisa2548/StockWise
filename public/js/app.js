@@ -24,6 +24,16 @@ const App = {
     document.getElementById('today-badge').textContent = 'วันนี้ (จำลอง) ' + this.thaiDate(this.data.today);
   },
 
+  selProduct: null,    // สินค้าที่เลือกอยู่ (ใช้ร่วมกันหน้าพยากรณ์/ล็อต)
+
+  esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); },
+  // จัดรูปแบบตัวเลขมีจุลภาค เช่น 1361 → "1,361", 42.3 → "42.3"
+  fmt(n, dec = 0) { return Number(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }); },
+  product(id) { return this.data.products.find(p => p.id === id); },
+  productOptions(sel) {
+    return this.data.products.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${this.esc(p.name)}</option>`).join('');
+  },
+
   // yyyy-mm-dd → "26 ก.ย. 2569"
   thaiDate(s) {
     const m = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
