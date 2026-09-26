@@ -56,6 +56,44 @@ Charts.line = function ({ labels, series, height = 300, splitAt = null, fmt = v 
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>` + Charts.legend(series);
 };
 
+// กราฟแท่งแนวตั้ง — highlight = { ดัชนี: สี } เพื่อเน้นแท่งพิเศษ
+Charts.bars = function ({ labels, values, color = '#0f766e', highlight = {}, height = 260, fmt = v => v }) {
+  const W = 760, H = height, m = { l: 40, r: 8, t: 20, b: 26 };
+  const sc = Charts.niceScale(0, Math.max(...values));
+  const n = labels.length, slot = (W - m.l - m.r) / n, bw = slot * 0.7;
+  const y = v => m.t + (1 - (v - sc.lo) / (sc.hi - sc.lo)) * (H - m.t - m.b);
+  let g = '';
+  sc.vals.forEach(v => {
+    g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="#e1e6eb"/>` +
+         `<text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end">${fmt(v)}</text>`;
+  });
+  values.forEach((v, i) => {
+    const x = m.l + i * slot + (slot - bw) / 2;
+    g += `<rect x="${x}" y="${y(v)}" width="${bw}" height="${Math.max(0, y(0) - y(v))}" rx="2" fill="${highlight[i] || color}"><title>${Charts.esc(labels[i])}: ${fmt(+v.toFixed(2))}</title></rect>` +
+         `<text x="${x + bw / 2}" y="${H - 8}" text-anchor="middle">${Charts.esc(labels[i])}</text>`;
+  });
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
+};
+
+// Heatmap: matrix[แถว][คอลัมน์], ยิ่งค่าสูงยิ่งเข้ม
+Charts.heatmap = function ({ rowLabels, colLabels, matrix, fmt = v => v.toFixed(1) }) {
+  const W = 760, m = { l: 34, t: 22, r: 4, b: 4 };
+  const cw = (W - m.l - m.r) / colLabels.length, ch = 30, H = m.t + ch * rowLabels.length + m.b;
+  const max = Math.max(...matrix.flat()) || 1;
+  let g = '';
+  colLabels.forEach((c, j) => { g += `<text x="${m.l + j * cw + cw / 2}" y="14" text-anchor="middle">${Charts.esc(c)}</text>`; });
+  rowLabels.forEach((r, i) => {
+    g += `<text x="${m.l - 6}" y="${m.t + i * ch + ch / 2 + 4}" text-anchor="end">${Charts.esc(r)}</text>`;
+    matrix[i].forEach((v, j) => {
+      const a = v / max;                                  // ความเข้ม 0–1
+      const fill = `rgba(15,118,110,${(0.06 + a * 0.94).toFixed(2)})`;
+      g += `<rect x="${m.l + j * cw + 1}" y="${m.t + i * ch + 1}" width="${cw - 2}" height="${ch - 2}" rx="3" fill="${fill}"><title>${Charts.esc(rowLabels[i] + ' ' + colLabels[j])}: ${fmt(v)}</title></rect>` +
+           `<text x="${m.l + j * cw + cw / 2}" y="${m.t + i * ch + ch / 2 + 4}" text-anchor="middle" style="fill:${a > 0.55 ? '#fff' : '#1c2733'};font-size:10px">${Math.round(v)}</text>`;
+    });
+  });
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
+};
+
 Charts.legend = series =>
   `<div class="legend">${series.map(s =>
     `<span><i style="background:${s.color}"></i>${Charts.esc(s.name)}</span>`).join('')}</div>`;

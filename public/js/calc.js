@@ -199,4 +199,26 @@ Calc.analyzeLots = function (data, fcs) {
   return out.sort((a, b) => a.lot.days_left - b.lot.days_left || a.lot.id - b.lot.id);
 };
 
+/* ============================================================
+ * 4) วิเคราะห์รายการขาย (Timestamp)
+ * ============================================================ */
+
+// วันในสัปดาห์ของสตริง yyyy-mm-dd (0 = อาทิตย์ … 6 = เสาร์)
+Calc.dayOfWeek = function (s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+};
+
+// ตารางยอดขายเฉลี่ย วัน(0–6) × ชั่วโมง(0–23) = ยอดขายรวมของวันนั้น ÷ จำนวนวันชนิดนั้นในช่วงข้อมูล
+Calc.hourlyByWeekday = function (data, productId) {
+  const sum = Array.from({ length: 7 }, () => new Array(24).fill(0));
+  const days = new Array(7).fill(0);
+  data.dates.forEach(s => { days[Calc.dayOfWeek(s)]++; });
+  data.transactions.forEach(t => {
+    if (productId && t.product_id !== productId) return;
+    sum[Calc.dayOfWeek(t.sold_at.slice(0, 10))][Number(t.sold_at.slice(11, 13))] += t.qty;
+  });
+  return sum.map((row, dow) => row.map(v => days[dow] ? v / days[dow] : 0));
+};
+
 if (typeof module !== 'undefined') module.exports = Calc;
