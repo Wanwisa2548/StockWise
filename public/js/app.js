@@ -17,6 +17,16 @@ const App = {
   ],
   current: 'overview',
 
+  // เรียก API แบบ JSON: สำเร็จคืนผลลัพธ์ ไม่สำเร็จโยน Error พร้อมข้อความจากเซิร์ฟเวอร์
+  async api(method, url, body) {
+    const res = await fetch(url, {
+      method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || res.statusText);
+    return json;
+  },
+
   async loadData() {
     const res = await fetch('/api/data');
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);

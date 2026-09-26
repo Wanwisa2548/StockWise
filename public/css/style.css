@@ -86,6 +86,7 @@ tr.row-orange td { background: var(--orange-soft); }
 @media (max-width: 600px) {
   .page { padding: 12px; }
   .brand p { display: none; }
+  .today { font-size: .75rem; padding: 4px 10px; }
   .kpi .value { font-size: 1.5rem; }
   th, td { padding: 7px 8px; }
 }
