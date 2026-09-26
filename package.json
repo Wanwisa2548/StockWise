@@ -1,0 +1,26 @@
+{
+  "name": "stockwise",
+  "version": "1.0.0",
+  "description": "Stock planning system for minimarts (SDG 12): sales forecasting, EOQ &amp; reorder point, expiry alerts with markdown suggestions, and K-means product clustering. Node.js + Express + SQL Server.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Wanwisa2548/StockWise.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Wanwisa2548/StockWise/issues"
+  },
+  "homepage": "https://github.com/Wanwisa2548/StockWise#readme",
+  "dependencies": {
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1",
+    "mssql": "^12.7.2"
+  }
+}

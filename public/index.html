@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="th">
+<head><meta charset="utf-8"><title>StockWise</title></head>
+<body>
+  <h1>สินค้าคงคลัง</h1>
+  <table border="1" cellpadding="6">
+    <thead><tr><th>สินค้า</th><th>คงเหลือ</th><th>ราคาทุน</th><th>Lead Time</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <script>
+    async function load() {
+      const res = await fetch('/api/products');
+      const products = await res.json();
+      document.getElementById('rows').innerHTML = products.map(p => `
+        <tr><td>${p.name}</td><td>${p.stock} ${p.unit}</td>
+            <td>${p.cost}</td><td>${p.lead_time_days} วัน</td></tr>`).join('');
+    }
+    load();
+  </script>
+</body>
+</html>
