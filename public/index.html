@@ -1,22 +1,37 @@
 <!doctype html>
 <html lang="th">
-<head><meta charset="utf-8"><title>StockWise</title></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>StockWise</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
 <body>
-  <h1>สินค้าคงคลัง</h1>
-  <table border="1" cellpadding="6">
-    <thead><tr><th>สินค้า</th><th>คงเหลือ</th><th>ราคาทุน</th><th>Lead Time</th></tr></thead>
-    <tbody id="rows"></tbody>
-  </table>
+  <header class="topbar">
+    <div class="topbar-in">
+      <div class="brand">
+        <span class="eyebrow">SDG 12 · ลดต้นทุนจมและของเสีย</span>
+        <h1>StockWise ระบบวางแผนสต็อกมินิมาร์ท</h1>
+      </div>
+      <div class="today" id="today-badge"></div>
+    </div>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="เมนู"></nav>
+  </header>
+  <main id="page" class="page"></main>
 
-  <script>
-    async function load() {
-      const res = await fetch('/api/products');
-      const products = await res.json();
-      document.getElementById('rows').innerHTML = products.map(p => `
-        <tr><td>${p.name}</td><td>${p.stock} ${p.unit}</td>
-            <td>${p.cost}</td><td>${p.lead_time_days} วัน</td></tr>`).join('');
-    }
-    load();
-  </script>
+  <script src="js/calc.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/pages/overview.js"></script>
+  <script src="js/pages/forecast.js"></script>
+  <script src="js/pages/order.js"></script>
+  <script src="js/pages/expiry.js"></script>
+  <script src="js/pages/sales.js"></script>
+  <script src="js/pages/cluster.js"></script>
+  <script src="js/pages/manage.js"></script>
+  <script>App.start();</script>
 </body>
 </html>

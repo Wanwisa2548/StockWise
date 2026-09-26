@@ -1,2 +1,107 @@
 # StockWise
-Stock planning system for minimarts (SDG 12): sales forecasting, EOQ &amp; reorder point, expiry alerts with markdown suggestions, and K-means product clustering. Node.js + Express + SQL Server.
+
+ระบบวางแผนสต็อกสำหรับมินิมาร์ท (SDG 12: ลดต้นทุนจมและของเสีย) — พยากรณ์ยอดขาย, EOQ และจุดสั่งซื้อ (ROP), แจ้งเตือนสินค้าใกล้หมดอายุพร้อมแนะนำส่วนลด และจัดกลุ่มสินค้าด้วย K-means
+
+Stack: Node.js + Express + SQL Server (แพ็กเกจ `mssql`) · หน้าเว็บเป็น HTML/CSS/JS ธรรมดาในโฟลเดอร์ `public/` (ไม่ใช้ framework)
+
+## 7 หน้าของเว็บ
+
+| หน้า | สิ่งที่ทำ |
+|---|---|
+| ภาพรวมวันนี้ | KPI, สิ่งที่ต้องทำเรียงตามความเร่งด่วน, สถานะสต็อกรายสินค้า, Key Insights |
+| พยากรณ์ยอดขาย | Moving Average / Exponential Smoothing, backtest แบบ one-step-ahead (MAE, MAPE, RMSE), พยากรณ์ 14 วัน |
+| แผนการสั่งซื้อ | EOQ, Safety Stock, ROP, จำนวนสั่ง, ควรสั่งเมื่อไหร่, จำลองสต็อก 30 วัน |
+| ใกล้หมดอายุ | ตรวจทุกล็อตแบบ FIFO, แนะนำส่วนลดและเวลาเริ่มโปร |
+| รายการขาย | ยอดเฉลี่ยรายชั่วโมง, heatmap วัน × ชั่วโมง, ตัวอย่างรวมเป็นยอดรายวัน |
+| จัดกลุ่มสินค้า | K-means (k = 2–5), กราฟกระจาย, กราฟ Elbow, นโยบายรายกลุ่ม |
+| ข้อมูลสินค้า | แก้ราคา/ค่าสั่งซื้อ/Lead Time/อายุสินค้า และแก้/เพิ่ม/ลบล็อต บันทึกลงฐานข้อมูลจริง |
+
+ปุ่มบันทึกผลลงฐานข้อมูล: "สั่งซื้อ" (ตาราง `purchase_orders`) ในหน้าแผนการสั่งซื้อ · "ตั้งโปรนี้" (`promotions`) ในหน้าใกล้หมดอายุ · "บันทึกผลพยากรณ์" (`forecasts`) และ "บันทึกผลจัดกลุ่ม" (`cluster_results`) ในหน้าของตัวเอง
+
+## ติดตั้งและรัน
+
+ต้องมี: Node.js 18 ขึ้นไป และ SQL Server 2019 (เปิด SQL Server Authentication และ TCP/IP พอร์ต 1433)
+
+1. **ติดตั้งแพ็กเกจ**
+   ```bash
+   npm install
+   ```
+2. **สร้างฐานข้อมูล** — เปิด `database/schema.sql` ใน SSMS แล้วกด Execute (สร้างฐานข้อมูล `StockWise`, ตารางทั้งหมด, view `daily_sales` และข้อมูลสินค้า 10 รายการกับ 16 ล็อต รันซ้ำได้ ไม่ทับข้อมูลเดิม)
+3. **ตั้งค่าการเชื่อมต่อ** — คัดลอก `.env.example` เป็น `.env` แล้วแก้ค่าให้ตรงกับเครื่องของคุณ (ห้าม commit ไฟล์ `.env`)
+   ```
+   DB_SERVER=localhost
+   DB_PORT=1433
+   DB_NAME=StockWise
+   DB_USER=...
+   DB_PASSWORD=...
+   PORT=3000
+   ```
+4. **สร้างรายการขายจำลอง 56 วัน** (ทำครั้งเดียว ข้อมูลเหมือนเดิมทุกครั้งที่รัน แต่จะลบรายการขายเดิมทั้งหมดก่อนใส่ใหม่)
+   ```bash
+   npm run seed
+   ```
+   ผลที่ควรได้: `เพิ่มรายการขาย 10680 รายการ (8856 บิล)`
+5. **เปิดเว็บ**
+   ```bash
+   npm start
+   ```
+   แล้วเข้า http://localhost:3000
+
+> วันที่จำลองของระบบคือ **26 ก.ย. 2569 (2026-09-26)** ตั้งไว้ใน `config.js` ยอดขายย้อนหลัง 56 วันสิ้นสุด 25 ก.ย. 2026
+
+## โครงสร้างโปรเจค
+
+```
+server.js            เริ่มเซิร์ฟเวอร์ ต่อ routes
+config.js            ค่าคงที่ (วันที่จำลอง, จำนวนวันย้อนหลัง)
+db.js                เชื่อมต่อ SQL Server (อ่านค่าจาก .env, useUTC: false)
+seed.js              สร้างรายการขายจำลอง
+routes/              API: data.js, products.js, lots.js, sales.js, records.js (util.js = ตรวจค่าที่รับเข้า)
+database/schema.sql  สคริปต์สร้างฐานข้อมูลสำหรับ SSMS
+public/
+  index.html         หน้าเดียว มี 7 แท็บ
+  css/style.css
+  js/calc.js         สูตรคำนวณทั้งหมด (พยากรณ์, EOQ/ROP, FIFO, ส่วนลด, K-means) — ไม่แตะ DOM
+  js/charts.js       วาดกราฟ SVG
+  js/app.js          โหลดข้อมูล สลับแท็บ
+  js/pages/*.js      โค้ดของแต่ละหน้า
+```
+
+## API
+
+| Method | Path | ใช้ทำอะไร |
+|---|---|---|
+| GET | `/api/data` | ข้อมูลทั้งหมดที่หน้าเว็บใช้ (สินค้า, ยอดขายรายวัน 56 วัน, ล็อตพร้อมวันก่อนหมดอายุ, รายการขาย) |
+| GET | `/api/products` | สินค้าพร้อมสต็อกคงเหลือ |
+| PUT | `/api/products/:id` | แก้ cost, price, order_cost, lead_time_days, shelf_life_days |
+| PUT | `/api/products/:id/cost` | แก้เฉพาะราคาทุน |
+| GET | `/api/lots` | ล็อตพร้อมจำนวนวันก่อนหมดอายุ |
+| POST | `/api/lots` | เพิ่มล็อต (`product_id, qty_received, qty_remaining?, received_date, expiry_date`) |
+| PUT | `/api/lots/:id` | แก้ล็อต |
+| DELETE | `/api/lots/:id` | ลบล็อต (ลบไม่ได้ถ้ามีโปรโมชั่น/รายการขายอ้างอิง → ตอบ 409) |
+| GET | `/api/daily-sales/:productId` | ยอดขายรายวันของสินค้า |
+| POST | `/api/purchase-orders` | สั่งซื้อ (`product_id, qty`) วันที่ของถึง = วันสั่ง + Lead Time, สินค้าที่มีใบสั่งรอของอยู่แล้วสั่งซ้ำไม่ได้ (409) |
+| PUT | `/api/purchase-orders/:id/status` | `received` (ของมาถึง เพิ่มล็อตเข้าสต็อกอัตโนมัติ) หรือ `cancelled` |
+| DELETE | `/api/purchase-orders/:id` | ลบใบสั่งซื้อที่ยกเลิกแล้ว |
+| POST | `/api/promotions` | ตั้งโปร (`lot_id, discount_pct, promo_price, start_hour`) สิ้นสุด 00:00 วันหมดอายุ ล็อตละ 1 โปร |
+| DELETE | `/api/promotions/:id` | ยกเลิกโปร |
+| POST | `/api/forecasts` | บันทึกผลพยากรณ์ทุกสินค้า (`method, param, items[]`) บันทึกซ้ำวิธีเดิมวันเดิม = แทนที่ |
+| POST | `/api/cluster-results` | บันทึกผลจัดกลุ่ม (`k, items[]`) บันทึกซ้ำ k เดิมวันเดิม = แทนที่ |
+
+ทุก query ใช้ parameterized query (`.input()`) และตรวจค่าที่รับเข้าที่ฝั่งเซิร์ฟเวอร์ (ตอบ 400 พร้อมข้อความภาษาไทยเมื่อค่าไม่ถูกต้อง)
+
+## ค่าอ้างอิงสำหรับตรวจว่าคำนวณถูก
+
+ที่ Moving Average n = 7, Service Level 95%, ต้นทุนเก็บรักษา 25%:
+
+- นมพาสเจอร์ไรส์: d = 42.3, MAPE 11.6%, RMSE 5.8, EOQ 1,361 (จำกัดอายุที่ 422), Safety Stock 13.5, ROP 98.1, สต็อก 250 → สั่งอีก 3 วัน (29 ก.ย.)
+- น้ำดื่ม: ROP 233, สต็อก 180 → สั่งวันนี้ 2,471 ขวด
+- สั่งวันนี้ 3 รายการ (ซาลาเปา, น้ำดื่ม, กาแฟ) · ควรจัดโปร 4 ล็อต 41 ชิ้น · มูลค่าเสี่ยงเสีย ฿572
+- นมล็อตแรก 110 กล่อง: ขายทัน 85 ขายไม่ทัน 25 → ลด 50% เหลือ 7 บาท เริ่มโปร 14:00
+- ทั้งร้าน: ชั่วโมงขายดีที่สุด 18:00 เริ่มโปร 16:00
+- K-means k = 3, SSE k=1..6 = 20.00, 10.84, 2.97, 1.79, 1.12, 0.57
+
+## Git workflow
+
+- `main` = งานเสถียรไว้ส่งอาจารย์ · `dev` = รวมงาน · `feature/*` = งานแต่ละส่วน
+- ห้าม push ขึ้น `main` โดยตรง ให้ merge จาก `dev` เมื่อพร้อมส่ง
