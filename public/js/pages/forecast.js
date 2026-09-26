@@ -22,14 +22,37 @@ Pages.forecast = {
       </div>
       <div class="card"><h3>ยอดขายจริงเทียบค่าพยากรณ์ และพยากรณ์ 14 วันข้างหน้า</h3><div id="f-chart"></div></div>
       <div class="card"><h3>ค่าพยากรณ์ 14 วันข้างหน้า</h3><div class="table-wrap" id="f-table"></div></div>
+      <div class="card">
+        <div class="bar-actions"><h3>บันทึกผลพยากรณ์</h3>
+          <button type="button" class="btn" id="f-save">บันทึกผลพยากรณ์ทุกสินค้า</button></div>
+        <p class="muted" id="f-saved-note"></p>
+        <div class="table-wrap" id="f-saved"></div>
+      </div>
       <div class="card formula" id="f-formula"></div>`;
+
+    // ผลพยากรณ์ชุดล่าสุดที่บันทึกไว้ในฐานข้อมูล (ตาราง forecasts)
+    const drawSaved = () => {
+      const rows = d.forecasts;
+      if (!rows.length) { $('#f-saved-note').textContent = 'ยังไม่เคยบันทึก — กดปุ่มด้านบนเพื่อเก็บผลพยากรณ์ของสินค้าทุกชิ้นตามวิธีและค่าที่เลือกอยู่'; $('#f-saved').innerHTML = ''; return; }
+      const f = rows[0];
+      $('#f-saved-note').textContent = `บันทึกล่าสุด: ${App.thaiDate(f.run_date)} · ${f.method === 'ma' ? 'Moving Average n=' + f.param : 'Exponential Smoothing α=' + f.param.toFixed(2)} · ${rows.length} สินค้า`;
+      $('#f-saved').innerHTML = `<table><thead><tr><th>สินค้า</th><th>พยากรณ์/วัน</th><th>MAE</th><th>MAPE</th><th>RMSE</th></tr></thead><tbody>
+        ${rows.slice().sort((a, b) => a.product_id - b.product_id).map(r => `<tr><td>${App.esc(App.product(r.product_id).name)}</td><td>${App.fmt(r.daily_forecast, 1)}</td><td>${App.fmt(r.mae, 2)}</td><td>${App.fmt(r.mape, 1)}%</td><td>${App.fmt(r.rmse, 1)}</td></tr>`).join('')}</tbody></table>`;
+    };
+    root.onclick = e => {
+      const b = e.target.closest('#f-save'); if (!b) return;
+      const fcs = Calc.forecastAll(d, S);
+      const items = d.products.map(p => ({ product_id: p.id, daily_forecast: fcs[p.id].d, mae: fcs[p.id].metrics.mae, mape: fcs[p.id].metrics.mape, rmse: fcs[p.id].metrics.rmse }));
+      const param = S.method === 'es' ? S.alpha : S.n;
+      App.act(b, () => App.api('POST', '/api/forecasts', { method: S.method, param, items }), 'บันทึกผลพยากรณ์ลงฐานข้อมูลแล้ว');
+    };
 
     const $ = id => root.querySelector(id);
     $('#f-prod').onchange = e => { App.selProduct = Number(e.target.value); update(); };
     $('#f-method').onclick = e => {
       const b = e.target.closest('button'); if (!b) return;
       S.method = b.dataset.m; root.querySelectorAll('#f-method button').forEach(x => x.classList.toggle('active', x === b));
-      drawParam(); update();
+      drawParam(); update(); drawSaved();
     };
 
     function drawParam() {

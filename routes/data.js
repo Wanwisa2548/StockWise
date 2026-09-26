@@ -55,7 +55,29 @@ router.get('/data', async (req, res) => {
              product_id, qty, CAST(unit_price AS float) AS unit_price
       FROM sales_transactions ORDER BY sold_at, id`)).recordset;
 
-    res.json({ today: SIM_TODAY, dates, products, dailySales, lots, transactions });
+    // ผลลัพธ์ที่บันทึกไว้: ใบสั่งซื้อ, โปรโมชั่น, ผลพยากรณ์และผลจัดกลุ่มชุดล่าสุด
+    const orders = (await pool.request().query(`
+      SELECT id, product_id, CONVERT(varchar(10), order_date, 23) AS order_date, qty,
+             CONVERT(varchar(10), expected_date, 23) AS expected_date, status
+      FROM purchase_orders ORDER BY id DESC`)).recordset;
+    const promotions = (await pool.request().query(`
+      SELECT id, lot_id, discount_pct, CAST(promo_price AS float) AS promo_price,
+             CONVERT(varchar(16), start_at, 120) AS start_at, CONVERT(varchar(16), end_at, 120) AS end_at
+      FROM promotions ORDER BY id DESC`)).recordset;
+    const fcRows = (await pool.request().query(`
+      SELECT id, product_id, CONVERT(varchar(10), run_date, 23) AS run_date, method, CAST(param AS float) AS param,
+             CAST(daily_forecast AS float) AS daily_forecast, CAST(mae AS float) AS mae,
+             CAST(mape AS float) AS mape, CAST(rmse AS float) AS rmse
+      FROM forecasts ORDER BY id DESC`)).recordset;
+    const forecasts = fcRows.length
+      ? fcRows.filter(r => r.run_date === fcRows[0].run_date && r.method === fcRows[0].method && r.param === fcRows[0].param) : [];
+    const clRows = (await pool.request().query(`
+      SELECT id, CONVERT(varchar(10), run_date, 23) AS run_date, k, product_id, cluster_label
+      FROM cluster_results ORDER BY id DESC`)).recordset;
+    const clusters = clRows.length
+      ? clRows.filter(r => r.run_date === clRows[0].run_date && r.k === clRows[0].k) : [];
+
+    res.json({ today: SIM_TODAY, dates, products, dailySales, lots, transactions, orders, promotions, forecasts, clusters });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

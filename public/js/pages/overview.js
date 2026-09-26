@@ -7,9 +7,9 @@ Pages.overview = {
     const opts = { serviceLevel: S.serviceLevel, holdRate: S.holdRate, today: d.today };
     const plans = d.products.map(p => ({ p, pl: Calc.plan(p, fcs[p.id], stock[p.id], opts) }));
     const lots = Calc.analyzeLots(d, fcs);
-    const risky = lots.filter(r => r.atRisk && !r.expired);
+    const risky = lots.filter(r => r.atRisk && !r.expired && !App.promoOfLot(r.lot.id));   // ยังไม่ได้ตั้งโปร
     const expired = lots.filter(r => r.expired);
-    const orderToday = plans.filter(x => x.pl.days <= 0);
+    const orderToday = plans.filter(x => x.pl.days <= 0 && !App.pendingOrder(x.p.id));   // ยังไม่ได้สั่ง
     const hh = h => String(h).padStart(2, '0') + ':00';
 
     const stockValue = d.lots.reduce((s, l) => s + l.qty_remaining * App.product(l.product_id).cost, 0);
@@ -26,7 +26,7 @@ Pages.overview = {
     risky.forEach(r => todo.push({ sev: r.discountPct >= 50 ? 1 : 2, color: r.discountPct >= 50 ? 'red' : 'orange', tag: r.action, go: 'expiry',
       title: `จัดโปร ${r.product.name} ล็อต #${r.lot.id}${r.promoPrice !== null ? ` ${r.action} เหลือ ${App.fmt(r.promoPrice)} บาท` : ''}`,
       detail: `ขายไม่ทัน ${App.fmt(r.unsold)} จาก ${App.fmt(r.lot.qty_remaining)} ${r.product.unit} (เหลือ ${r.lot.days_left} วัน)${r.promoPrice !== null ? ` · เริ่มโปร ${hh(r.startHour)}` : ''}` }));
-    plans.filter(x => x.pl.days >= 1 && x.pl.days <= 3).sort((a, b) => a.pl.days - b.pl.days).forEach(({ p, pl }) => todo.push({ sev: 2, color: 'orange', tag: 'เตรียมสั่ง', go: 'order',
+    plans.filter(x => x.pl.days >= 1 && x.pl.days <= 3 && !App.pendingOrder(x.p.id)).sort((a, b) => a.pl.days - b.pl.days).forEach(({ p, pl }) => todo.push({ sev: 2, color: 'orange', tag: 'เตรียมสั่ง', go: 'order',
       title: `เตรียมสั่ง ${p.name} ภายใน ${pl.days} วัน (${App.shortDate(pl.orderDate)})`,
       detail: `สต็อก ${App.fmt(pl.stock)} · ROP ${App.fmt(pl.rop, 1)} · จำนวนที่ควรสั่ง ${App.fmt(pl.qty)} ${p.unit}` }));
     todo.sort((a, b) => a.sev - b.sev);

@@ -18,6 +18,12 @@ Pages.cluster = {
         </div>
       </div>
       <div id="c-cards" class="grid cols-3"></div>
+      <div class="card">
+        <div class="bar-actions"><h3>บันทึกผลจัดกลุ่ม</h3>
+          <button type="button" class="btn" id="c-save"></button></div>
+        <p class="muted" id="c-saved-note"></p>
+        <div class="table-wrap" id="c-saved"></div>
+      </div>
       <div class="card formula">
         ตัวแปร: log10(ยอดขายพยากรณ์ต่อวัน) และ log10(อายุสินค้า) ปรับเป็น z-score · k-means++ รัน 20 รอบ เลือกรอบที่ SSE ต่ำสุด<br>
         Elbow = k ที่ผลต่างอันดับสองของ SSE มากที่สุด · ตั้งชื่อกลุ่มจากค่าเฉลี่ยเรขาคณิต (geometric mean) ของอายุและยอดขาย
@@ -26,7 +32,24 @@ Pages.cluster = {
     const $ = id => root.querySelector(id);
     $('#c-k').onclick = e => { const b = e.target.closest('button'); if (b) { S.k = Number(b.dataset.k); update(); } };
 
+    // ผลจัดกลุ่มชุดล่าสุดที่บันทึกไว้ในฐานข้อมูล (ตาราง cluster_results)
+    const drawSaved = () => {
+      const rows = d.clusters;
+      if (!rows.length) { $('#c-saved-note').textContent = 'ยังไม่เคยบันทึกผลจัดกลุ่ม'; $('#c-saved').innerHTML = ''; return; }
+      $('#c-saved-note').textContent = `บันทึกล่าสุด: ${App.thaiDate(rows[0].run_date)} · k = ${rows[0].k}`;
+      const by = {};
+      rows.forEach(r => (by[r.cluster_label] ||= []).push(App.product(r.product_id).name));
+      $('#c-saved').innerHTML = `<table><thead><tr><th>กลุ่ม</th><th class="left">สินค้า</th></tr></thead><tbody>${Object.entries(by).map(([k, v]) => `<tr><td>${App.esc(k)}</td><td class="left">${v.map(App.esc).join(', ')}</td></tr>`).join('')}</tbody></table>`;
+    };
+    root.onclick = e => {
+      const b = e.target.closest('#c-save'); if (!b) return;
+      const r = Calc.clusterProducts(d, Calc.forecastAll(d, S), S.k);
+      const items = d.products.map((p, i) => ({ product_id: p.id, cluster_label: r.groups.find(g => g.id === r.assign[i]).name }));
+      App.act(b, () => App.api('POST', '/api/cluster-results', { k: S.k, items }), `บันทึกผลจัดกลุ่ม k=${S.k} ลงฐานข้อมูลแล้ว`);
+    };
+
     const update = () => {
+      $('#c-save').textContent = `บันทึกผลจัดกลุ่ม k=${S.k}`;
       root.querySelectorAll('#c-k button').forEach(b => b.classList.toggle('active', Number(b.dataset.k) === S.k));
       const fcs = Calc.forecastAll(d, S);
       const r = Calc.clusterProducts(d, fcs, S.k);
@@ -54,5 +77,6 @@ Pages.cluster = {
         </div>`).join('');
     };
     update();
+    drawSaved();
   }
 };

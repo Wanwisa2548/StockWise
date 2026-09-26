@@ -16,6 +16,8 @@ Stack: Node.js + Express + SQL Server (แพ็กเกจ `mssql`) · หน�
 | จัดกลุ่มสินค้า | K-means (k = 2–5), กราฟกระจาย, กราฟ Elbow, นโยบายรายกลุ่ม |
 | ข้อมูลสินค้า | แก้ราคา/ค่าสั่งซื้อ/Lead Time/อายุสินค้า และแก้/เพิ่ม/ลบล็อต บันทึกลงฐานข้อมูลจริง |
 
+ปุ่มบันทึกผลลงฐานข้อมูล: "สั่งซื้อ" (ตาราง `purchase_orders`) ในหน้าแผนการสั่งซื้อ · "ตั้งโปรนี้" (`promotions`) ในหน้าใกล้หมดอายุ · "บันทึกผลพยากรณ์" (`forecasts`) และ "บันทึกผลจัดกลุ่ม" (`cluster_results`) ในหน้าของตัวเอง
+
 ## ติดตั้งและรัน
 
 ต้องมี: Node.js 18 ขึ้นไป และ SQL Server 2019 (เปิด SQL Server Authentication และ TCP/IP พอร์ต 1433)
@@ -54,7 +56,7 @@ server.js            เริ่มเซิร์ฟเวอร์ ต่อ 
 config.js            ค่าคงที่ (วันที่จำลอง, จำนวนวันย้อนหลัง)
 db.js                เชื่อมต่อ SQL Server (อ่านค่าจาก .env, useUTC: false)
 seed.js              สร้างรายการขายจำลอง
-routes/              API: data.js, products.js, lots.js, sales.js (util.js = ตรวจค่าที่รับเข้า)
+routes/              API: data.js, products.js, lots.js, sales.js, records.js (util.js = ตรวจค่าที่รับเข้า)
 database/schema.sql  สคริปต์สร้างฐานข้อมูลสำหรับ SSMS
 public/
   index.html         หน้าเดียว มี 7 แท็บ
@@ -78,6 +80,13 @@ public/
 | PUT | `/api/lots/:id` | แก้ล็อต |
 | DELETE | `/api/lots/:id` | ลบล็อต (ลบไม่ได้ถ้ามีโปรโมชั่น/รายการขายอ้างอิง → ตอบ 409) |
 | GET | `/api/daily-sales/:productId` | ยอดขายรายวันของสินค้า |
+| POST | `/api/purchase-orders` | สั่งซื้อ (`product_id, qty`) วันที่ของถึง = วันสั่ง + Lead Time, สินค้าที่มีใบสั่งรอของอยู่แล้วสั่งซ้ำไม่ได้ (409) |
+| PUT | `/api/purchase-orders/:id/status` | `received` (ของมาถึง เพิ่มล็อตเข้าสต็อกอัตโนมัติ) หรือ `cancelled` |
+| DELETE | `/api/purchase-orders/:id` | ลบใบสั่งซื้อที่ยกเลิกแล้ว |
+| POST | `/api/promotions` | ตั้งโปร (`lot_id, discount_pct, promo_price, start_hour`) สิ้นสุด 00:00 วันหมดอายุ ล็อตละ 1 โปร |
+| DELETE | `/api/promotions/:id` | ยกเลิกโปร |
+| POST | `/api/forecasts` | บันทึกผลพยากรณ์ทุกสินค้า (`method, param, items[]`) บันทึกซ้ำวิธีเดิมวันเดิม = แทนที่ |
+| POST | `/api/cluster-results` | บันทึกผลจัดกลุ่ม (`k, items[]`) บันทึกซ้ำ k เดิมวันเดิม = แทนที่ |
 
 ทุก query ใช้ parameterized query (`.input()`) และตรวจค่าที่รับเข้าที่ฝั่งเซิร์ฟเวอร์ (ตอบ 400 พร้อมข้อความภาษาไทยเมื่อค่าไม่ถูกต้อง)
 

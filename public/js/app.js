@@ -27,6 +27,36 @@ const App = {
     return json;
   },
 
+  // ใบสั่งซื้อที่ยังรอของของสินค้านั้น (ถ้ามี)
+  pendingOrder(pid) { return (this.data.orders || []).find(o => o.product_id === pid && o.status === 'ordered'); },
+  // โปรโมชั่นที่ตั้งไว้ของล็อตนั้น (ถ้ามี)
+  promoOfLot(lotId) { return (this.data.promotions || []).find(p => p.lot_id === lotId); },
+
+  // แจ้งผลมุมขวาล่าง (ok = สำเร็จ, ไม่ใช่ = ผิดพลาด)
+  toast(text, ok = true) {
+    let el = document.getElementById('toast');
+    if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+    el.className = 'toast ' + (ok ? 'ok' : 'bad');
+    el.textContent = text; el.hidden = false;
+    clearTimeout(this._tt); this._tt = setTimeout(() => { el.hidden = true; }, 4500);
+  },
+
+  // กดปุ่มแล้วเรียก API → โหลดข้อมูลใหม่ → วาดหน้าเดิมโดยคงตำแหน่งการเลื่อน; ผิดพลาดแจ้งข้อความจากเซิร์ฟเวอร์
+  async act(btn, call, okText) {
+    if (btn) btn.disabled = true;
+    try {
+      await call();
+      await this.loadData();
+      const y = window.scrollY;
+      this.refresh();
+      window.scrollTo(0, y);
+      this.toast(okText, true);
+    } catch (err) {
+      if (btn) btn.disabled = false;
+      this.toast(err.message, false);
+    }
+  },
+
   async loadData() {
     const res = await fetch('/api/data');
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
@@ -73,6 +103,7 @@ const App = {
     });
     const root = document.getElementById('page');
     root.innerHTML = '';
+    root.onclick = null;   // ตัวจัดการคลิกของหน้าก่อนหน้าต้องไม่ค้างมา
     const page = Pages[key];
     if (page) page.render(root);
     else root.innerHTML = '<div class="card muted">หน้านี้กำลังพัฒนา</div>';
@@ -84,8 +115,8 @@ const App = {
   updateBadges() {
     const d = this.data, fcs = Calc.forecastAll(d, this.settings), stock = Calc.stockByProduct(d);
     const opts = { serviceLevel: this.settings.serviceLevel, holdRate: this.settings.holdRate, today: d.today };
-    const order = d.products.filter(p => Calc.plan(p, fcs[p.id], stock[p.id], opts).days <= 0).length;
-    const expiry = Calc.analyzeLots(d, fcs).filter(r => r.atRisk).length;
+    const order = d.products.filter(p => Calc.plan(p, fcs[p.id], stock[p.id], opts).days <= 0 && !this.pendingOrder(p.id)).length;
+    const expiry = Calc.analyzeLots(d, fcs).filter(r => r.atRisk && !this.promoOfLot(r.lot.id)).length;
     [['order', order], ['expiry', expiry]].forEach(([k, n]) => {
       const el = document.getElementById('cnt-' + k);
       if (el) { el.textContent = n; el.hidden = n === 0; }
