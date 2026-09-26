@@ -125,4 +125,78 @@ Calc.simulateStock = function (plan, leadTime, days = 30) {
   return { level, orders };
 };
 
+/* ============================================================
+ * 3) สินค้าใกล้หมดอายุ (FIFO + ส่วนลด + เวลาเริ่มโปร)
+ * ============================================================ */
+
+// กฎส่วนลดตามจำนวนวันที่เหลือ → { pct, label }
+Calc.discountRule = function (daysLeft) {
+  if (daysLeft <= 0) return { pct: 0, label: 'นำออก' };
+  if (daysLeft <= 2) return { pct: 50, label: 'ลด 50%' };
+  if (daysLeft <= 4) return { pct: 30, label: 'ลด 30%' };
+  if (daysLeft <= 7) return { pct: 20, label: 'ลด 20%' };
+  return { pct: 0, label: 'เฝ้าระวัง' };
+};
+
+// ยอดขายรวมรายชั่วโมง (0–23) ของสินค้า (ไม่ระบุ productId = ทุกสินค้า)
+Calc.hourlyTotals = function (transactions, productId) {
+  const h = new Array(24).fill(0);
+  transactions.forEach(t => {
+    if (productId && t.product_id !== productId) return;
+    h[Number(t.sold_at.slice(11, 13))] += t.qty;
+  });
+  return h;
+};
+
+// ชั่วโมงเริ่มโปร = ชั่วโมงสุดท้ายที่ยอดขายตั้งแต่ชั่วโมงนั้นจนปิดร้านยังเหลือ ≥ 40% ของยอดทั้งวัน
+// (นับรวมชั่วโมง 22:xx เพราะร้านยังมีขายถึง 22:59)
+Calc.promoStartHour = function (hours) {
+  const total = hours.reduce((a, b) => a + b, 0);
+  let start = null;
+  for (let h = 0; h < 24; h++) {
+    let rest = 0;
+    for (let k = h; k < 24; k++) rest += hours[k];
+    if (total > 0 && rest / total >= 0.4) start = h;
+  }
+  return start;
+};
+
+// ชั่วโมงที่ขายดีที่สุด
+Calc.peakHour = function (hours) { return hours.indexOf(Math.max(...hours)); };
+
+// ตรวจทุกล็อตแบบ FIFO ว่าขายทันก่อนหมดอายุหรือไม่
+//   fcs = ผลพยากรณ์รายสินค้า (ใช้ d), คืนรายการล็อตพร้อมผลวิเคราะห์ (เรียงตามวันหมดอายุ)
+//   ล็อตเรียงตามวันหมดอายุ: ล็อตก่อนหน้าจะใช้ยอดขายไปก่อน ล็อตถัดไปได้ส่วนที่เหลือ
+//   ขายได้ทัน = min(จำนวนในล็อต, d × วันที่เหลือ − ที่ล็อตก่อนหน้าใช้ไป)
+Calc.analyzeLots = function (data, fcs) {
+  const out = [];
+  data.products.forEach(p => {
+    const d = fcs[p.id].d;
+    const hours = Calc.hourlyTotals(data.transactions, p.id);
+    const startHour = Calc.promoStartHour(hours);
+    const lots = data.lots.filter(l => l.product_id === p.id && l.qty_remaining > 0)
+      .sort((a, b) => a.expiry_date.localeCompare(b.expiry_date) || a.id - b.id);
+    let used = 0;                                   // ยอดขายที่ล็อตก่อนหน้าใช้ไปแล้ว
+    lots.forEach(l => {
+      const expired = l.days_left <= 0;
+      const capacity = expired ? 0 : Math.max(0, d * l.days_left - used);
+      const soldRaw = Math.min(l.qty_remaining, capacity);
+      const sellable = Math.round(soldRaw);
+      const unsold = expired ? l.qty_remaining : l.qty_remaining - sellable;
+      if (!expired) used += soldRaw;
+      const rule = Calc.discountRule(l.days_left);
+      const atRisk = unsold > 0;                    // ขายไม่ทัน → ต้องจัดโปร (หรือนำออกถ้าหมดอายุ)
+      out.push({
+        lot: l, product: p, d, expired, sellable, unsold, atRisk,
+        action: expired ? 'นำออก' : atRisk ? rule.label : 'ขายทัน',
+        discountPct: expired || !atRisk ? 0 : rule.pct,
+        promoPrice: expired || !atRisk || !rule.pct ? null : Math.round(p.price * (100 - rule.pct) / 100),
+        riskValue: unsold * p.cost,                 // มูลค่าเสี่ยงเสีย = ชิ้นที่ขายไม่ทัน × ราคาทุน
+        startHour
+      });
+    });
+  });
+  return out.sort((a, b) => a.lot.days_left - b.lot.days_left || a.lot.id - b.lot.id);
+};
+
 if (typeof module !== 'undefined') module.exports = Calc;
