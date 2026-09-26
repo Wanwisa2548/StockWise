@@ -4,6 +4,8 @@
   "description": "Stock planning system for minimarts (SDG 12): sales forecasting, EOQ &amp; reorder point, expiry alerts with markdown suggestions, and K-means product clustering. Node.js + Express + SQL Server.",
   "main": "index.js",
   "scripts": {
+    "start": "node server.js",
+    "seed": "node seed.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
