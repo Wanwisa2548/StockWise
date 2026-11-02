@@ -1,4 +1,4 @@
-// app.js — โหลดข้อมูลจาก /api/data แล้วสลับแท็บทั้ง 7 หน้า
+// app.js — โหลดข้อมูลจาก /api/data แล้วสลับแท็บทั้ง 8 หน้า
 // แต่ละหน้าลงทะเบียนตัวเองที่ Pages.<key> = { render(root) }
 const Pages = {};
 
@@ -8,6 +8,7 @@ const App = {
   settings: { method: 'ma', n: 7, alpha: 0.30, confidenceLevel: 0.95, serviceLevel: 0.95, holdRate: 0.25 },
   tabs: [
     { key: 'overview', label: 'ภาพรวมร้าน', icon: 'overview' },
+    { key: 'summary',  label: 'สรุปผล', icon: 'sparkle' },
     { key: 'sales',    label: 'วิเคราะห์ยอดขาย', icon: 'sales' },
     { key: 'forecast', label: 'พยากรณ์ยอดขาย', icon: 'forecast' },
     { key: 'order',    label: 'วางแผนจัดซื้อ', icon: 'order', badge: true },
