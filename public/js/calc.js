@@ -190,7 +190,7 @@ Calc.analyzeLots = function (data, fcs) {
         lot: l, product: p, d, expired, sellable, unsold, atRisk,
         action: expired ? 'นำออก' : atRisk ? rule.label : 'ขายทัน',
         discountPct: expired || !atRisk ? 0 : rule.pct,
-        promoPrice: expired || !atRisk || !rule.pct ? null : Math.round(p.price * (100 - rule.pct) / 100),
+        promoPrice: expired || !atRisk || !rule.pct ? null : Math.round(p.price * (100 - rule.pct)) / 100,
         riskValue: unsold * p.cost,                 // มูลค่าเสี่ยงเสีย = ชิ้นที่ขายไม่ทัน × ราคาทุน
         startHour
       });

@@ -7,13 +7,13 @@ const App = {
   // ค่าที่ผู้ใช้ปรับได้ และใช้ร่วมกันหลายหน้า (พยากรณ์ → แผนสั่งซื้อ → ภาพรวม)
   settings: { method: 'ma', n: 7, alpha: 0.30, serviceLevel: 0.95, holdRate: 0.25 },
   tabs: [
-    { key: 'overview', label: 'ภาพรวมวันนี้' },
-    { key: 'forecast', label: 'พยากรณ์ยอดขาย' },
-    { key: 'order',    label: 'แผนการสั่งซื้อ', badge: true },
-    { key: 'expiry',   label: 'ใกล้หมดอายุ', badge: true },
-    { key: 'sales',    label: 'รายการขาย' },
-    { key: 'cluster',  label: 'จัดกลุ่มสินค้า' },
-    { key: 'manage',   label: 'ข้อมูลสินค้า' }
+    { key: 'overview', label: 'ภาพรวมร้าน', icon: 'overview' },
+    { key: 'sales',    label: 'วิเคราะห์ยอดขาย', icon: 'sales' },
+    { key: 'forecast', label: 'พยากรณ์ยอดขาย', icon: 'forecast' },
+    { key: 'order',    label: 'วางแผนจัดซื้อ', icon: 'order', badge: true },
+    { key: 'expiry',   label: 'จัดการของใกล้หมดอายุ', icon: 'expiry', badge: true },
+    { key: 'cluster',  label: 'จัดกลุ่มสินค้า', icon: 'cluster' },
+    { key: 'manage',   label: 'สินค้าและสต็อก', icon: 'manage' }
   ],
   current: 'overview',
 
@@ -58,10 +58,20 @@ const App = {
   },
 
   async loadData() {
-    const res = await fetch('/api/data');
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
-    this.data = await res.json();
-    document.getElementById('today-badge').innerHTML = '<span>วันที่จำลอง</span><b>' + this.thaiDate(this.data.today) + '</b>';
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+    let json;
+    try {
+      const res = await fetch('/api/data', { signal: controller.signal });
+      json = await res.json();
+      if (!res.ok) throw new Error(json.error || res.statusText);
+    } catch (err) {
+      if (err.name === 'AbortError') throw new Error('ฐานข้อมูลตอบกลับช้าเกิน 30 วินาที กรุณาตรวจสอบ Tailscale แล้วโหลดหน้าใหม่');
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
+    this.data = json;
     this.updateBadges();
   },
 
@@ -70,6 +80,28 @@ const App = {
   esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); },
   // จัดรูปแบบตัวเลขมีจุลภาค เช่น 1361 → "1,361", 42.3 → "42.3"
   fmt(n, dec = 0) { return Number(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }); },
+  money(n, dec = 2) { return '€' + this.fmt(n, dec); },
+  icon(name, className = '') {
+    const paths = {
+      overview: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+      sales: '<path d="M4 4v16h17M8 15V9m5 6V5m5 10v-4"/>',
+      forecast: '<path d="M3 17 8 11l4 3 8-10M15 4h5v5M4 21h16"/>',
+      order: '<path d="M3 3h2l3 13h11l2-10H6M10 20h.01M18 20h.01"/><circle cx="10" cy="20" r="1"/><circle cx="18" cy="20" r="1"/>',
+      expiry: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+      cluster: '<rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="15" y="15" width="6" height="6" rx="1.5"/><path d="M18 3v6M15 6h6M6 15v6M3 18h6"/>',
+      manage: '<path d="m12 3 9 5v9l-9 5-9-5V8l9-5Z"/><path d="m3 8 9 5 9-5m-9 5v9M7 5.8 16 11"/>',
+      calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-13 4h2m4 0h2m-8 3h2"/>',
+      download: '<path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5"/>',
+      arrow: '<path d="M4 12h16m-6-6 6 6-6 6"/>',
+      sparkle: '<path d="m12 3 2.7 6.3L21 12l-6.3 2.7L12 21l-2.7-6.3L3 12l6.3-2.7L12 3Z"/>',
+      revenue: '<path d="M17 5a7 7 0 1 0 0 14M4 10h10M4 14h10"/>',
+      bread: '<path d="M6 18 4 11a4 4 0 0 1 4-5h8a4 4 0 0 1 4 5l-2 7H6Z"/><path d="m8 7 2 6m2-7 2 7m2-7 2 6M7 21h10"/>',
+      receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6m-6 4h3"/>',
+      check: '<path d="m5 12 4 4L19 6"/>',
+      leaf: '<path d="M20 4C11 2 4 6 5 13s12 9 15-9ZM5 20 15 10"/>'
+    };
+    return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.overview}</svg>`;
+  },
   product(id) { return this.data.products.find(p => p.id === id); },
   productOptions(sel) {
     return this.data.products.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${this.esc(p.name)}</option>`).join('');
@@ -88,20 +120,37 @@ const App = {
 
   buildTabs() {
     const nav = document.getElementById('tabs');
-    nav.innerHTML = this.tabs.map(t => `<button data-key="${t.key}" role="tab">${t.label}${t.badge ? ` <span class="cnt" id="cnt-${t.key}" hidden></span>` : ''}</button>`).join('');
+    nav.setAttribute('aria-orientation', window.innerWidth <= 760 ? 'horizontal' : 'vertical');
+    nav.innerHTML = this.tabs.map((t, i) => `<button id="tab-${t.key}" data-key="${t.key}" role="tab" aria-controls="page" aria-selected="false" tabindex="${i ? -1 : 0}">${this.icon(t.icon, 'nav-icon')}<span>${t.label}</span>${t.badge ? ` <span class="cnt" id="cnt-${t.key}" hidden></span>` : ''}</button>`).join('');
     nav.addEventListener('click', e => {
       const b = e.target.closest('button'); if (b) this.show(b.dataset.key);
+    });
+    nav.addEventListener('keydown', e => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+      e.preventDefault();
+      const buttons = [...nav.querySelectorAll('button')];
+      const index = buttons.indexOf(document.activeElement);
+      let next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1
+        : (index + (['ArrowRight', 'ArrowDown'].includes(e.key) ? 1 : -1) + buttons.length) % buttons.length;
+      buttons[next].focus(); this.show(buttons[next].dataset.key);
     });
   },
 
   show(key) {
+    if (!this.data) return;
+    if (!this.tabs.some(t => t.key === key)) key = 'overview';
     this.current = key;
     history.replaceState(null, '', '#' + key);
     document.querySelectorAll('#tabs button').forEach(b => {
       b.classList.toggle('active', b.dataset.key === key);
       b.setAttribute('aria-selected', b.dataset.key === key);
+      b.tabIndex = b.dataset.key === key ? 0 : -1;
     });
     const root = document.getElementById('page');
+    root.setAttribute('aria-labelledby', 'tab-' + key);
+    root.setAttribute('aria-busy', 'false');
+    document.getElementById('page-breadcrumb').textContent = this.tabs.find(t => t.key === key).label;
+    document.title = this.tabs.find(t => t.key === key).label + ' · StockWise French Bakery';
     root.innerHTML = '';
     root.onclick = null;   // ตัวจัดการคลิกของหน้าก่อนหน้าต้องไม่ค้างมา
     const page = Pages[key];
@@ -127,6 +176,7 @@ const App = {
   refresh() { this.show(this.current); },
 
   onResize() {
+    document.getElementById('tabs').setAttribute('aria-orientation', window.innerWidth <= 760 ? 'horizontal' : 'vertical');
     if (!this.data || this.current === 'manage') return;
     clearTimeout(this._rt);
     this._rt = setTimeout(() => {
@@ -138,12 +188,22 @@ const App = {
     this._w = window.innerWidth;
     window.addEventListener('resize', () => this.onResize());
     this.buildTabs();
+    document.getElementById('brand-home').onclick = e => { e.preventDefault(); this.show('overview'); };
+    window.addEventListener('hashchange', () => this.show(location.hash.slice(1)));
+    document.getElementById('refresh-data').onclick = async e => {
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      try { await this.loadData(); this.show(this.current); this.toast('อัปเดตข้อมูลจากฐานข้อมูลแล้ว'); }
+      catch (err) { this.toast(err.message, false); }
+      finally { btn.disabled = false; }
+    };
     const root = document.getElementById('page');
     root.innerHTML = '<div class="loading">กำลังโหลดข้อมูลจากฐานข้อมูล…</div>';
     try {
       await this.loadData();
     } catch (err) {
-      root.innerHTML = `<div class="error">โหลดข้อมูลไม่สำเร็จ: ${err.message}</div>`;
+      root.innerHTML = `<div class="error">โหลดข้อมูลไม่สำเร็จ: ${this.esc(err.message)}</div>`;
+      root.setAttribute('aria-busy', 'false');
       return;
     }
     const hash = location.hash.slice(1);

@@ -23,7 +23,7 @@ Pages.expiry = {
       <div class="grid cols-4" style="margin-bottom:16px">
         <div class="kpi orange"><div class="label">ล็อตที่ควรจัดโปร</div><div class="value">${risky.length}</div><div class="note">ล็อตที่ขายไม่ทัน</div></div>
         <div class="kpi orange"><div class="label">จำนวนที่ขายไม่ทัน</div><div class="value">${App.fmt(risky.reduce((s, r) => s + r.unsold, 0))}</div><div class="note">ชิ้น</div></div>
-        <div class="kpi red"><div class="label">มูลค่าเสี่ยงเสีย</div><div class="value">฿${App.fmt(risky.reduce((s, r) => s + r.riskValue, 0))}</div><div class="note">คิดที่ราคาทุน</div></div>
+        <div class="kpi red"><div class="label">มูลค่าเสี่ยงเสีย</div><div class="value">${App.money(risky.reduce((s, r) => s + r.riskValue, 0))}</div><div class="note">คิดที่ราคาทุน</div></div>
         <div class="kpi ${expired.length ? 'red' : 'green'}"><div class="label">หมดอายุแล้ว (ต้องนำออก)</div><div class="value">${expired.length}</div><div class="note">ล็อต</div></div>
       </div>
 
@@ -34,7 +34,7 @@ Pages.expiry = {
             <b>${App.esc(r.product.name)}</b> ล็อต #${r.lot.id} (เหลือ ${r.lot.days_left} วัน, ${App.fmt(r.lot.qty_remaining)} ${App.esc(r.product.unit)})<br>
             ขายทัน ${App.fmt(r.sellable)} · <b>ขายไม่ทัน ${App.fmt(r.unsold)}</b> →
             ${r.promoPrice !== null
-              ? `<b>${r.action}</b> เหลือ ${App.fmt(r.promoPrice)} บาท (จาก ${App.fmt(r.product.price)}) เริ่มโปรตั้งแต่ <b>${hh(r.startHour)}</b>`
+              ? `<b>${r.action}</b> เหลือ ${App.money(r.promoPrice)} (จาก ${App.money(r.product.price)}) เริ่มโปรตั้งแต่ <b>${hh(r.startHour)}</b>`
               : 'เฝ้าระวัง (ยังไม่ถึงเกณฑ์ลดราคา)'}
           </div><span style="margin-left:auto">${promoCell(r)}</span></li>`).join('')}</ul>` : '<p class="muted">ทุกล็อตขายทันก่อนหมดอายุ</p>'}
       </div>
@@ -43,9 +43,9 @@ Pages.expiry = {
         <h3>โปรโมชั่นที่ตั้งไว้</h3>
         ${d0.promotions.length ? `<div class="table-wrap"><table><thead><tr><th>สินค้า</th><th>ล็อต</th><th>ส่วนลด</th><th>ราคาโปร</th><th>เริ่ม</th><th>สิ้นสุด</th><th></th></tr></thead><tbody>
           ${d0.promotions.map(p => { const lot = d0.lots.find(l => l.id === p.lot_id); const pr = lot ? App.product(lot.product_id) : null;
-            return `<tr><td>${pr ? App.esc(pr.name) : '-'}</td><td>#${p.lot_id}</td><td>${p.discount_pct}%</td><td>${App.fmt(p.promo_price)} บาท</td>
+            return `<tr><td>${pr ? App.esc(pr.name) : '-'}</td><td>#${p.lot_id}</td><td>${p.discount_pct}%</td><td>${App.money(p.promo_price)}</td>
               <td>${p.start_at}</td><td>${p.end_at}</td><td><button type="button" class="btn go danger" data-del-promo="${p.id}">ยกเลิกโปร</button></td></tr>`; }).join('')}
-          </tbody></table></div>` : '<p class="muted">ยังไม่ได้ตั้งโปรโมชั่น กดปุ่ม "ตั้งโปรนี้" เพื่อบันทึกลงฐานข้อมูล (ตาราง promotions)</p>'}
+          </tbody></table></div>` : '<p class="muted">ยังไม่มีโปรโมชั่น เลือกส่วนลดที่แนะนำเพื่อเริ่มวางแผน</p>'}
       </div>
 
       <div class="card">
@@ -69,9 +69,9 @@ Pages.expiry = {
           <td>${r.lot.days_left}</td><td>${App.fmt(r.lot.qty_remaining)}</td><td>${App.fmt(r.sellable)}</td>
           <td>${r.unsold ? `<b>${App.fmt(r.unsold)}</b>` : '0'}</td>
           <td><span class="badge ${r.expired ? 'red' : r.atRisk ? (r.discountPct ? 'orange' : 'gray') : 'green'}">${r.action}</span></td>
-          <td>${r.promoPrice !== null ? App.fmt(r.promoPrice) + ' บาท' : '-'}</td>
+          <td>${r.promoPrice !== null ? App.money(r.promoPrice) : '-'}</td>
           <td>${r.promoPrice !== null ? hh(r.startHour) : '-'}</td>
-          <td>${r.riskValue ? '฿' + App.fmt(r.riskValue) : '-'}</td><td>${promoCell(r)}</td></tr>`).join('')}
+          <td>${r.riskValue ? App.money(r.riskValue) : '-'}</td><td>${promoCell(r)}</td></tr>`).join('')}
         </tbody></table>`;
     };
     root.querySelector('#e-only').onchange = draw;
@@ -83,7 +83,7 @@ Pages.expiry = {
         const lot = d0.lots.find(l => l.id === Number(b.dataset.promoLot)), pr = App.product(lot.product_id);
         const pct = Number(b.dataset.pct), price = Number(b.dataset.price), hour = Number(b.dataset.hour);
         if (!confirm(`ตั้งโปร ${pr.name} ล็อต #${lot.id}
-ลด ${pct}% เหลือ ${App.fmt(price)} บาท เริ่ม ${hh(hour)} จนถึงวันหมดอายุ?`)) return;
+ลด ${pct}% เหลือ ${App.money(price)} เริ่ม ${hh(hour)} จนถึงวันหมดอายุ?`)) return;
         App.act(b, () => App.api('POST', '/api/promotions', { lot_id: lot.id, discount_pct: pct, promo_price: price, start_hour: hour }), `ตั้งโปร ${pr.name} ล็อต #${lot.id} แล้ว`);
       } else if (b.dataset.delPromo) {
         if (!confirm('ยกเลิกโปรโมชั่นนี้ (ลบออกจากฐานข้อมูล)?')) return;

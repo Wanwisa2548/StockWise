@@ -1,114 +1,128 @@
-// หน้า 1: ภาพรวมวันนี้ — สรุป KPI, สิ่งที่ต้องทำ, สถานะสต็อก และ Key Insights จากข้อมูลจริง
+// Bakery dashboard: all metrics, comparisons and recommendations use the selected sales window.
 Pages.overview = {
+  period: 28,
+
   render(root) {
-    const d = App.data, S = App.settings;
-    const fcs = Calc.forecastAll(d, S);
+    const d = App.data, settings = App.settings;
+    const fcs = Calc.forecastAll(d, settings);
     const stock = Calc.stockByProduct(d);
-    const opts = { serviceLevel: S.serviceLevel, holdRate: S.holdRate, today: d.today };
+    const opts = { serviceLevel: settings.serviceLevel, holdRate: settings.holdRate, today: d.today };
     const plans = d.products.map(p => ({ p, pl: Calc.plan(p, fcs[p.id], stock[p.id], opts) }));
-    const lots = Calc.analyzeLots(d, fcs);
-    const risky = lots.filter(r => r.atRisk && !r.expired && !App.promoOfLot(r.lot.id));   // ยังไม่ได้ตั้งโปร
-    const expired = lots.filter(r => r.expired);
-    const orderToday = plans.filter(x => x.pl.days <= 0 && !App.pendingOrder(x.p.id));   // ยังไม่ได้สั่ง
+    const lotAnalysis = Calc.analyzeLots(d, fcs);
+    const risky = lotAnalysis.filter(r => r.atRisk && !r.expired && !App.promoOfLot(r.lot.id));
+    const expired = lotAnalysis.filter(r => r.expired);
+    const orderToday = plans.filter(x => x.pl.days <= 0 && !App.pendingOrder(x.p.id));
+    const icon = App.icon.bind(App), esc = App.esc.bind(App), fmt = App.fmt.bind(App), money = App.money.bind(App);
+    const count = this.period;
+    const dates = d.dates.slice(-count);
+    const previousDates = d.dates.slice(-count * 2, -count);
+    const daySet = new Set(dates), previousSet = new Set(previousDates);
+    const rows = d.transactions.filter(t => daySet.has(t.sold_at.slice(0, 10)));
+    const previousRows = d.transactions.filter(t => previousSet.has(t.sold_at.slice(0, 10)));
+    const sum = (items, value) => items.reduce((s, t) => s + value(t), 0);
+    const revenue = sum(rows, t => t.qty * t.unit_price);
+    const previousRevenue = sum(previousRows, t => t.qty * t.unit_price);
+    const pieces = sum(rows, t => t.qty);
+    const previousPieces = sum(previousRows, t => t.qty);
+    const receipts = items => new Set(items.map(t => t.sold_at.slice(0, 10) + '|' + t.receipt_no)).size;
+    const nextDay = sum(d.products, p => fcs[p.id].d);
     const hh = h => String(h).padStart(2, '0') + ':00';
-
-    const stockValue = d.lots.reduce((s, l) => s + l.qty_remaining * App.product(l.product_id).cost, 0);
-    const riskValue = risky.reduce((s, r) => s + r.riskValue, 0);
-    const riskPieces = risky.reduce((s, r) => s + r.unsold, 0);
-
-    // ---- รายการสิ่งที่ต้องทำ เรียงตามความเร่งด่วน (sev น้อย = เร่งด่วนกว่า) ----
-    const todo = [];
-    expired.forEach(r => todo.push({ sev: 0, color: 'red', tag: 'นำออกจากชั้น', go: 'expiry',
-      title: `นำ ${r.product.name} ล็อต #${r.lot.id} ออกจากชั้น`, detail: `หมดอายุแล้ว ${App.fmt(r.lot.qty_remaining)} ${r.product.unit}` }));
-    orderToday.sort((a, b) => a.pl.days - b.pl.days).forEach(({ p, pl }) => todo.push({ sev: 1, color: 'red', tag: 'สั่งวันนี้', go: 'order',
-      title: `สั่งซื้อ ${p.name} วันนี้ ${App.fmt(pl.qty)} ${p.unit}`,
-      detail: `สต็อก ${App.fmt(pl.stock)} ต่ำกว่าจุดสั่งซื้อ (ROP ${App.fmt(pl.rop, 1)}) · ของถึงใน ${p.lead_time_days} วัน` }));
-    risky.forEach(r => todo.push({ sev: r.discountPct >= 50 ? 1 : 2, color: r.discountPct >= 50 ? 'red' : 'orange', tag: r.action, go: 'expiry',
-      title: `จัดโปร ${r.product.name} ล็อต #${r.lot.id}${r.promoPrice !== null ? ` ${r.action} เหลือ ${App.fmt(r.promoPrice)} บาท` : ''}`,
-      detail: `ขายไม่ทัน ${App.fmt(r.unsold)} จาก ${App.fmt(r.lot.qty_remaining)} ${r.product.unit} (เหลือ ${r.lot.days_left} วัน)${r.promoPrice !== null ? ` · เริ่มโปร ${hh(r.startHour)}` : ''}` }));
-    plans.filter(x => x.pl.days >= 1 && x.pl.days <= 3 && !App.pendingOrder(x.p.id)).sort((a, b) => a.pl.days - b.pl.days).forEach(({ p, pl }) => todo.push({ sev: 2, color: 'orange', tag: 'เตรียมสั่ง', go: 'order',
-      title: `เตรียมสั่ง ${p.name} ภายใน ${pl.days} วัน (${App.shortDate(pl.orderDate)})`,
-      detail: `สต็อก ${App.fmt(pl.stock)} · ROP ${App.fmt(pl.rop, 1)} · จำนวนที่ควรสั่ง ${App.fmt(pl.qty)} ${p.unit}` }));
-    todo.sort((a, b) => a.sev - b.sev);
-
-    // ---- Key Insights (คำนวณจากข้อมูลจริง) ----
-    const insights = this.insights(d, fcs, plans, risky, stockValue, riskValue);
+    const hours = Calc.hourlyTotals(rows);
+    const peak = Calc.peakHour(hours);
+    const topForecast = plans.slice().sort((a, b) => b.pl.d - a.pl.d)[0];
+    const riskPieces = sum(risky, r => r.unsold);
+    const productTotals = d.products.map(p => {
+      const sales = rows.filter(t => t.product_id === p.id);
+      return { p, revenue: sum(sales, t => t.qty * t.unit_price), qty: sum(sales, t => t.qty) };
+    }).sort((a, b) => b.revenue - a.revenue);
+    const daily = selectedDates => selectedDates.map(date => sum(d.transactions.filter(t => t.sold_at.startsWith(date)), t => t.qty * t.unit_price));
+    const currentValues = daily(dates), previousValues = daily(previousDates);
+    const change = (current, previous) => {
+      if (!previous) return '<span class="delta">—</span><span>ไม่มีข้อมูลเปรียบเทียบ</span>';
+      const pct = (current - previous) / Math.abs(previous) * 100;
+      return `<span class="delta ${pct < 0 ? 'negative' : ''}">${pct < 0 ? '↘' : '↗'} ${pct > 0 ? '+' : ''}${fmt(pct, 1)}%</span><span>เทียบ ${count} วันก่อนหน้า</span>`;
+    };
+    const shortName = p => p.name.replace(/\s*\([^)]*\)\s*/g, '').trim();
+    const englishName = p => (p.name.match(/\(([^)]+)\)/) || [null, p.name])[1];
+    const fullRange = `${App.shortDate(dates[0])} – ${App.thaiDate(dates[dates.length - 1])}`;
+    const forecastLabel = settings.method === 'ma' ? `Moving Average · ${settings.n} วัน` : `Exponential Smoothing · α ${fmt(settings.alpha, 2)}`;
 
     root.innerHTML = `
-      <h2>ภาพรวมวันนี้</h2>
-      <p class="sub">สรุปสิ่งที่ต้องทำในร้านวันนี้ (${App.thaiDate(d.today)}) — คำนวณจากพยากรณ์ ${S.method === 'ma' ? 'Moving Average n=' + S.n : 'Exponential Smoothing α=' + S.alpha.toFixed(2)}, Service Level ${S.serviceLevel * 100}%</p>
-      <div class="grid cols-4" style="margin-bottom:16px">
-        <div class="kpi ${orderToday.length ? 'red' : 'green'}"><div class="label">ต้องสั่งวันนี้</div><div class="value">${orderToday.length}</div><div class="note">รายการสินค้า</div></div>
-        <div class="kpi ${risky.length ? 'orange' : 'green'}"><div class="label">ควรจัดโปร</div><div class="value">${risky.length}</div><div class="note">ล็อต · ${App.fmt(riskPieces)} ชิ้น</div></div>
-        <div class="kpi blue"><div class="label">มูลค่าสต็อก</div><div class="value">฿${App.fmt(stockValue)}</div><div class="note">คิดที่ราคาทุน</div></div>
-        <div class="kpi ${riskValue ? 'red' : 'green'}"><div class="label">มูลค่าเสี่ยงเสีย</div><div class="value">฿${App.fmt(riskValue)}</div><div class="note">ของที่คาดว่าขายไม่ทันก่อนหมดอายุ</div></div>
+      <div class="page-heading">
+        <div><span class="eyebrow">A FRESH PERSPECTIVE, EVERY DAY</span><h2>ภาพรวมร้านเบเกอรี่</h2><p>เข้าใจยอดขาย วางแผนให้พอดี และลดของเสียในทุกวัน</p></div>
+        <div class="heading-actions"><div class="date-range">${icon('calendar')}<span>${fullRange}</span></div><button type="button" class="btn" id="export-sales">${icon('download')}ส่งออกรายงาน</button></div>
       </div>
-      <div class="grid cols-2">
-        <div class="card"><h3>สิ่งที่ต้องทำ (เรียงตามความเร่งด่วน)</h3>
-          ${todo.length ? todo.map(t => `<div class="task"><span class="badge ${t.color}">${App.esc(t.tag)}</span><div><div class="t">${App.esc(t.title)}</div><div class="d">${App.esc(t.detail)}</div></div><button type="button" class="btn secondary go" data-go="${t.go}">ดูรายละเอียด</button></div>`).join('') : '<p class="muted">วันนี้ไม่มีงานเร่งด่วน</p>'}
-        </div>
-        <div class="col">
-        <div class="card"><h3>Key Insights</h3>
-          <ul class="insights">${insights.map((i, n) => `<li><span class="ic">${n + 1}</span><div>${i}</div></li>`).join('')}</ul>
-        </div>
-      <div class="card"><h3>สถานะสต็อกรายสินค้า</h3><div class="table-wrap">
-        <table><thead><tr><th>สินค้า</th><th>สต็อก</th><th>ROP</th><th>พอขาย (วัน)</th><th style="min-width:90px">เทียบ ROP</th><th>ควรสั่งเมื่อ</th></tr></thead><tbody>
+
+      <div class="grid cols-4 dashboard-metrics">
+        <div class="kpi primary-metric"><div class="metric-head"><span class="label">ยอดขายรวม</span><span class="metric-icon">${icon('revenue')}</span></div><div class="value">${money(revenue)}</div><div class="metric-foot">${change(revenue, previousRevenue)}</div></div>
+        <div class="kpi"><div class="metric-head"><span class="label">จำนวนสินค้าที่ขาย</span><span class="metric-icon">${icon('bread')}</span></div><div class="value">${fmt(pieces)}<span class="metric-unit">ชิ้น</span></div><div class="metric-foot">${change(pieces, previousPieces)}</div></div>
+        <div class="kpi"><div class="metric-head"><span class="label">จำนวนบิล</span><span class="metric-icon">${icon('receipt')}</span></div><div class="value">${fmt(receipts(rows))}<span class="metric-unit">บิล</span></div><div class="metric-foot">${change(receipts(rows), receipts(previousRows))}</div></div>
+        <div class="kpi"><div class="metric-head"><span class="label">พยากรณ์วันถัดไป</span><span class="metric-icon">${icon('forecast')}</span></div><div class="value">${fmt(nextDay)}<span class="metric-unit">ชิ้น</span></div><div class="metric-foot"><span class="delta">${App.shortDate(d.today)}</span><span>· ${forecastLabel}</span></div></div>
+      </div>
+
+      <div class="dashboard-upper">
+        <section class="card sales-chart-card" aria-labelledby="sales-heading">
+          <div class="section-head"><div><h3 id="sales-heading">แนวโน้มยอดขาย</h3><p class="section-caption">ภาพรวมรายได้รายวันของร้าน</p></div><div class="period-switch" role="group" aria-label="ช่วงเวลาวิเคราะห์">${[7, 14, 28].map(n => `<button type="button" data-period="${n}" aria-pressed="${count === n}" class="${count === n ? 'active' : ''}">${n} วัน</button>`).join('')}</div></div>
+          <div class="chart-key"><span><i></i>ช่วงที่เลือก</span><span><i class="previous"></i>ช่วงก่อนหน้า</span></div>
+          <div id="overview-sales-chart"></div><div class="chart-meta"><span>รายได้ (ยูโร)</span><span>${count} วัน · ${fullRange}</span></div>
+        </section>
+        <section class="card decision-card" aria-labelledby="decision-heading">
+          <div><div class="decision-top">${icon('sparkle')}<span>DECISION SUPPORT</span></div><h3 id="decision-heading">อบให้พอดี<br>กับความต้องการของลูกค้า</h3><p class="decision-description">คำแนะนำสำหรับ ${App.thaiDate(d.today)}<br>จากยอดขายและสต็อกปัจจุบันของร้าน</p></div>
+          <div class="decision-stats"><div><strong>${orderToday.length.toString().padStart(2, '0')}</strong><small>สินค้าที่ควรสั่งวันนี้</small></div><div><strong>${(risky.length + expired.length).toString().padStart(2, '0')}</strong><small>ล็อตที่ควรดูแลก่อน</small></div></div>
+          <button type="button" class="decision-button" data-go="${orderToday.length ? 'order' : risky.length + expired.length ? 'expiry' : 'forecast'}">ดูคำแนะนำการวางแผน ${icon('arrow')}</button>
+        </section>
+      </div>
+
+      <div class="dashboard-lower">
+        <section class="card" aria-labelledby="bestseller-heading">
+          <div class="section-head"><div><h3 id="bestseller-heading">สินค้าขายดี</h3><p class="section-caption">5 อันดับตามรายได้ · ${count} วันล่าสุด</p></div><button class="text-button" type="button" data-go="sales">ดูยอดขายทั้งหมด ${icon('arrow')}</button></div>
+          <div class="best-sellers">${productTotals.slice(0, 5).map(({ p, revenue: amount, qty }, i) => `<div class="best-row"><span class="best-rank">${String(i + 1).padStart(2, '0')}</span><span class="product-thumbnail">${icon('bread')}</span><div class="product-info"><b title="${esc(p.name)}">${esc(englishName(p))}</b><small>${esc(shortName(p))} · ${fmt(qty)} ${esc(p.unit)}</small></div><div class="product-revenue">${money(amount)}<small>${revenue ? fmt(amount / revenue * 100, 1) : '0'}% ของรายได้</small></div></div>`).join('')}</div>
+        </section>
+        <section class="card" aria-labelledby="insight-heading">
+          <div class="section-head"><div><h3 id="insight-heading">ข้อมูลเล็ก ๆ เพื่อการตัดสินใจที่ดีขึ้น</h3><p class="section-caption">สิ่งที่ข้อมูลกำลังบอกคุณ</p></div>${icon('sparkle', 'insight-header-icon')}</div>
+          <div class="recommend-list">
+            <div class="recommendation"><span class="recommend-icon">${icon('expiry')}</span><div><h4>เตรียมพร้อมก่อน ${hh(peak)}</h4><p>ช่วง ${hh(peak)}–${hh((peak + 1) % 24)} ขายดีที่สุดใน ${count} วันที่เลือก เตรียมสินค้าและทีมให้พร้อมก่อนช่วงนี้</p></div></div>
+            <div class="recommendation"><span class="recommend-icon">${icon('forecast')}</span><div><h4>${esc(shortName(topForecast.p))} มีความต้องการสูง</h4><p>คาดว่าจะขายได้ ${fmt(topForecast.pl.d)} ${esc(topForecast.p.unit)}/วัน ตรวจสอบสต็อกก่อนเริ่มวันใหม่</p></div></div>
+            <div class="recommendation"><span class="recommend-icon">${icon('leaf')}</span><div><h4>${expired.length ? `นำสินค้าหมดอายุ ${expired.length} ล็อตออกก่อน` : risky.length ? `ดูแลของสด ${risky.length} ล็อตก่อน` : 'สต็อกสดใหม่ อยู่ในเกณฑ์ดี'}</h4><p>${expired.length ? 'ตรวจสอบล็อตที่หมดอายุในหน้าจัดการของใกล้หมดอายุ ก่อนจัดสินค้ารอบใหม่' : risky.length ? `คาดว่ามี ${fmt(riskPieces)} ชิ้นที่ขายไม่ทัน ลองใช้ส่วนลดตามคำแนะนำเพื่อลดของเสีย` : 'ทุกล็อตคาดว่าจะขายทันก่อนหมดอายุ ติดตามยอดขายเพื่อรักษาระดับสต็อกให้เหมาะสม'}</p></div></div>
+          </div>
+          <div class="model-note"><i></i>วิเคราะห์จากข้อมูลจริง · ${forecastLabel}</div>
+        </section>
+      </div>
+
+      <section class="card stock-card" aria-labelledby="stock-heading"><div class="section-head"><div><h3 id="stock-heading" class="status-title">สถานะสต็อก <small>${d.products.length} รายการ</small></h3><p class="section-caption">วางแผนสำหรับ ${App.thaiDate(d.today)} · ระดับบริการ ${fmt(settings.serviceLevel * 100)}%</p></div><button type="button" class="text-button" data-go="manage">จัดการสินค้า ${icon('arrow')}</button></div>
+        <div class="table-wrap"><table><thead><tr><th>สินค้า</th><th>สต็อกปัจจุบัน</th><th>ความต้องการ / วัน</th><th>สต็อกเทียบจุดสั่งซื้อ</th><th>พอขายได้</th><th>คำแนะนำ</th></tr></thead><tbody>
         ${plans.map(({ p, pl }) => {
-          const cover = pl.d > 0 ? pl.stock / pl.d : 0;
-          const pct = Math.min(100, pl.stock / (pl.rop * 3) * 100), mark = 100 / 3;
-          const col = { red: 'var(--crit)', orange: 'var(--warn)', green: 'var(--ok)' }[pl.status];
-          return `<tr><td>${App.esc(p.name)}</td><td>${App.fmt(pl.stock)} ${App.esc(p.unit)}</td><td>${App.fmt(pl.rop, 1)}</td><td>${App.fmt(cover, 1)}</td>
-            <td><div style="position:relative;height:10px;background:var(--line);border-radius:5px"><div style="height:10px;width:${pct}%;background:${col};border-radius:5px"></div>
-              <div title="ROP" style="position:absolute;left:${mark}%;top:-3px;width:2px;height:16px;background:var(--ink)"></div></div></td>
-            <td><span class="badge ${pl.status}">${pl.days <= 0 ? 'สั่งวันนี้' : `อีก ${pl.days} วัน`}</span></td></tr>`;
-        }).join('')}
-        </tbody></table></div>
-        <p class="muted" style="margin:8px 0 0">แถบสีคือสต็อกปัจจุบัน เส้นดำคือจุดสั่งซื้อ (ROP) — ถ้าแถบสั้นกว่าเส้นดำ ต้องสั่งซื้อทันที</p>
-      </div>
-        </div>
-      </div>`;
+          const cover = pl.d > 0 ? pl.stock / pl.d : null;
+          const pct = pl.rop > 0 ? Math.min(100, Math.max(0, pl.stock / (pl.rop * 3) * 100)) : 100;
+          const color = { red: 'var(--crit)', orange: 'var(--warn)', green: '#96a982' }[pl.status];
+          return `<tr><td>${esc(englishName(p))}</td><td>${fmt(pl.stock)} <span class="muted">${esc(p.unit)}</span></td><td>${fmt(pl.d, 1)}</td><td><div class="compact-stock" title="สต็อก ${fmt(pl.stock)} · จุดสั่งซื้อ ${fmt(pl.rop, 1)}"><span style="width:${pct}%;background:${color}"></span></div></td><td>${cover === null ? '—' : fmt(cover, 1) + ' วัน'}</td><td>${App.pendingOrder(p.id) ? '<span class="badge blue">รอรับสินค้า</span>' : `<span class="badge ${pl.status}">${pl.days <= 0 ? 'ควรสั่งวันนี้' : `สั่งใน ${pl.days} วัน`}</span>`}</td></tr>`;
+        }).join('')}</tbody></table></div>
+      </section>`;
 
-    root.querySelectorAll('[data-go]').forEach(a => a.onclick = () => App.show(a.dataset.go));
-  },
-
-  // สร้างข้อความ Key Insights จากข้อมูล (แต่ละข้อคำนวณจริง ไม่ใช่ข้อความตายตัว)
-  insights(d, fcs, plans, risky, stockValue, riskValue) {
-    const out = [];
-    const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
-    const hh = h => String(h).padStart(2, '0') + ':00';
-
-    // 1) ช่วงเวลาขายดีและเวลาเริ่มโปรของทั้งร้าน
-    const hours = Calc.hourlyTotals(d.transactions);
-    out.push(`ร้านขายดีที่สุดช่วง <b>${hh(Calc.peakHour(hours))}</b> และควรเริ่มโปรโมชั่นตั้งแต่ <b>${hh(Calc.promoStartHour(hours))}</b> เพราะหลังจากนั้นยังเหลือยอดขาย ≥ 40% ของวัน`);
-
-    // 2) วันในสัปดาห์ที่ขายดีที่สุด
-    const dowName = ['อาทิตย์', 'จันทร์', 'อังคาร', 'พุธ', 'พฤหัสบดี', 'ศุกร์', 'เสาร์'];
-    const tot = new Array(7).fill(0), cnt = new Array(7).fill(0);
-    d.dates.forEach((s, i) => { const w = Calc.dayOfWeek(s); tot[w] += d.products.reduce((a, p) => a + d.dailySales[p.id][i], 0); cnt[w]++; });
-    const avgDow = tot.map((t, i) => t / cnt[i]), best = avgDow.indexOf(Math.max(...avgDow)), worst = avgDow.indexOf(Math.min(...avgDow));
-    out.push(`วัน<b>${dowName[best]}</b>ขายดีที่สุด (เฉลี่ย ${App.fmt(avgDow[best])} ชิ้น) ส่วนวัน${dowName[worst]}ขายน้อยที่สุด (${App.fmt(avgDow[worst])} ชิ้น) ควรเผื่อสต็อกก่อนวันขายดี`);
-
-    // 3) สินค้าที่แนวโน้มยอดขายขึ้น/ลงมากที่สุด (เทียบ 28 วันหลังกับ 28 วันแรก)
-    const growth = d.products.map(p => {
-      const s = d.dailySales[p.id], h = Math.floor(s.length / 2);
-      return { p, g: (mean(s.slice(h)) / mean(s.slice(0, h)) - 1) * 100 };
-    }).sort((a, b) => b.g - a.g);
-    const up = growth[0], down = growth[growth.length - 1];
-    out.push(`แนวโน้มยอดขายโตสุดคือ <b>${App.esc(up.p.name)}</b> (${up.g >= 0 ? '+' : ''}${App.fmt(up.g, 1)}%) ส่วน <b>${App.esc(down.p.name)}</b> ${down.g < 0 ? 'ลดลง ' : 'โตน้อยสุด '}(${down.g >= 0 ? '+' : ''}${App.fmt(down.g, 1)}%) เทียบครึ่งหลังกับครึ่งแรกของ 56 วัน`);
-
-    // 4) ของเสียที่เสี่ยง
-    if (risky.length) {
-      const worstRisk = risky.slice().sort((a, b) => b.riskValue - a.riskValue)[0];
-      out.push(`มูลค่าเสี่ยงเสีย <b>฿${App.fmt(riskValue)}</b> (${App.fmt(riskValue / stockValue * 100, 1)}% ของมูลค่าสต็อก) มากที่สุดคือ ${App.esc(worstRisk.product.name)} ล็อต #${worstRisk.lot.id} (฿${App.fmt(worstRisk.riskValue)}) — จัดโปรตามเวลาที่แนะนำจะช่วยลดของเสีย`);
-    } else out.push('ทุกล็อตขายทันก่อนหมดอายุ ไม่มีมูลค่าเสี่ยงเสีย');
-
-    // 5) สินค้าที่ EOQ ถูกจำกัดด้วยอายุสินค้า
-    const limited = plans.filter(x => x.pl.limited);
-    if (limited.length) out.push(`สินค้า ${limited.length} จาก ${plans.length} รายการมี EOQ สูงกว่าที่ขายทันในอายุสินค้า จึงจำกัดจำนวนสั่ง (เช่น ${App.esc(limited[0].p.name)} สั่งครั้งละ ${App.fmt(limited[0].pl.qty)} แทน ${App.fmt(limited[0].pl.eoq)}) — ควรสั่งถี่ขึ้นครั้งละน้อยลง`);
-
-    // 6) สินค้าที่พยากรณ์แม่นที่สุด / คลาดเคลื่อนมากที่สุด
-    const byMape = plans.slice().sort((a, b) => fcs[a.p.id].metrics.mape - fcs[b.p.id].metrics.mape);
-    out.push(`พยากรณ์แม่นที่สุดคือ ${App.esc(byMape[0].p.name)} (MAPE ${App.fmt(fcs[byMape[0].p.id].metrics.mape, 1)}%) และคลาดเคลื่อนสุดคือ ${App.esc(byMape[byMape.length - 1].p.name)} (${App.fmt(fcs[byMape[byMape.length - 1].p.id].metrics.mape, 1)}%) — สินค้าที่พยากรณ์ยากต้องเผื่อ Safety Stock มากกว่า`);
-    return out;
+    const chart = root.querySelector('#overview-sales-chart');
+    chart.innerHTML = Charts.line({
+      ...Charts.fit(chart, .36, 210, 290), labels: dates.map(date => App.shortDate(date)),
+      series: [
+        { name: 'ช่วงก่อนหน้า', color: 'var(--chart-actual)', values: previousValues, dash: '4 5', width: 1.5 },
+        { name: 'ช่วงที่เลือก', color: '#527354', values: currentValues, width: 2.3, area: true }
+      ], fmt: value => fmt(value), hideLegend: true
+    });
+    root.querySelectorAll('[data-go]').forEach(button => button.onclick = () => App.show(button.dataset.go));
+    root.querySelectorAll('[data-period]').forEach(button => button.onclick = () => {
+      this.period = Number(button.dataset.period); this.render(root);
+    });
+    root.querySelector('#export-sales').onclick = () => {
+      const lines = [['date', 'revenue_eur', 'quantity', 'receipts'].join(',')];
+      dates.forEach((date, i) => {
+        const dayRows = rows.filter(t => t.sold_at.startsWith(date));
+        lines.push([date, currentValues[i].toFixed(2), sum(dayRows, t => t.qty), receipts(dayRows)].join(','));
+      });
+      const url = URL.createObjectURL(new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = url; link.download = `stockwise-sales-${dates[0]}-${dates[dates.length - 1]}.csv`;
+      document.body.appendChild(link); link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      App.toast('ส่งออกรายงานยอดขาย CSV แล้ว');
+    };
   }
 };

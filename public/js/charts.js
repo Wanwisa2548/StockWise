@@ -26,7 +26,7 @@ Charts.niceScale = function (min, max, ticks = 5) {
 //   labels  = ป้ายแกน x, series = [{ name, color, values, dash?, width? }] (null = ไม่วาด)
 //   splitAt = ดัชนีที่เริ่มช่วง "พยากรณ์อนาคต" (ระบายพื้นหลังจางๆ)
 //   band    = { from, lo, hi } แถบความคลาดเคลื่อนตั้งแต่ดัชนี from เป็นต้นไป
-Charts.line = function ({ labels, series, height = 300, width = 760, splitAt = null, band = null, fmt = v => v, yMin = 0 }) {
+Charts.line = function ({ labels, series, height = 300, width = 760, splitAt = null, band = null, fmt = v => v, yMin = 0, hideLegend = false }) {
   const W = width, H = height, m = { l: 46, r: 12, t: 12, b: 28 };
   const all = series.flatMap(s => s.values).filter(v => v !== null && v !== undefined);
   if (band) all.push(band.hi);
@@ -57,6 +57,11 @@ Charts.line = function ({ labels, series, height = 300, width = 760, splitAt = n
       if (v === null || v === undefined) { pen = false; return; }
       d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`; pen = true;
     });
+    if (s.area) {
+      const first = s.values.findIndex(v => v !== null && v !== undefined);
+      const last = s.values.findLastIndex(v => v !== null && v !== undefined);
+      if (first >= 0) g += `<path d="${d}L${x(last)},${y(0)}L${x(first)},${y(0)}Z" style="fill:${s.color};fill-opacity:.055;stroke:none"/>`;
+    }
     g += `<path d="${d}" style="fill:none;stroke:${s.color};stroke-width:${s.width || 2}${s.dash ? `;stroke-dasharray:${s.dash}` : ''};stroke-linejoin:round"/>`;
   });
   // พื้นที่โปร่งใสสำหรับ tooltip (hover ดูค่าแต่ละวัน)
@@ -68,7 +73,7 @@ Charts.line = function ({ labels, series, height = 300, width = 760, splitAt = n
   });
   const legendItems = series.map(s => ({ name: s.name, color: s.color, dash: s.dash }));
   if (band) legendItems.push({ name: band.name || 'ช่วงความคลาดเคลื่อน', color: 'var(--band)', box: true });
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>` + Charts.legend(legendItems);
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${Charts.esc(series.map(s => s.name).join(' เทียบกับ '))}">${g}</svg>` + (hideLegend ? '' : Charts.legend(legendItems));
 };
 
 // กราฟแท่งแนวตั้ง — highlight = { ดัชนี: สี } เพื่อเน้นแท่งพิเศษ

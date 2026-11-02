@@ -3,24 +3,37 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="light dark">
-  <title>StockWise</title>
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#f7f8f5">
+  <title>StockWise · French Bakery</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=Libre+Caslon+Display&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar-in">
-      <div class="brand">
-        <span class="eyebrow">SDG 12 · ลดต้นทุนจมและของเสีย</span>
-        <h1>StockWise ระบบวางแผนสต็อกมินิมาร์ท</h1>
-      </div>
-      <div class="today" id="today-badge"></div>
+  <a class="skip-link" href="#page">ข้ามไปเนื้อหา</a>
+  <aside class="sidebar" aria-label="เมนูหลัก">
+    <a class="brand" href="#overview" id="brand-home" aria-label="StockWise หน้าภาพรวม">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><path d="M9 29c-3-2-4-6-2-9 2-5 7-8 13-8s11 3 13 8c2 3 1 7-2 9l-5-2-6 2-6-2-5 2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m13 15 3 11m11-11-3 11m-4-14v14M8 21l6-2m18 2-6-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+      <span><strong>StockWise<span>.</span></strong><small>FRENCH BAKERY</small></span>
+    </a>
+    <div class="workspace-label"><span class="store-dot"></span> Bakery workspace <span class="workspace-tag">DSS</span></div>
+    <p class="nav-label">WORKSPACE</p>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="หน้าระบบ" aria-orientation="vertical"></nav>
+    <div class="sidebar-bottom">
+      <div class="sustainability"><span class="leaf-icon" aria-hidden="true">↗</span><div><b>อบให้พอดี ขายให้คุ้ม</b><p>ลดของเสียด้วยการวางแผนที่ดี</p></div><span class="sdg-tag">SDG 12</span></div>
+      <div class="workspace-profile"><span class="avatar">SW</span><div><b>Bakery manager</b><small>Decision Support System</small></div></div>
     </div>
-    <nav class="tabs" id="tabs" role="tablist" aria-label="เมนู"></nav>
+  </aside>
+  <div class="app-shell">
+  <header class="topbar">
+    <div class="breadcrumb"><span>Workspace</span><span class="crumb-separator">/</span><b id="page-breadcrumb">ภาพรวมร้าน</b></div>
+    <div class="header-tools"><span class="dataset-pill"><i></i> French Bakery Daily Sales</span><button class="icon-button" id="refresh-data" type="button" aria-label="รีเฟรชข้อมูล" title="รีเฟรชข้อมูล"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 18 17"/></svg></button><span class="header-avatar" aria-hidden="true">B</span></div>
   </header>
-  <main id="page" class="page"></main>
+  <main id="page" class="page" tabindex="-1" role="tabpanel" aria-busy="true"></main>
+  <footer class="app-footer"><span>StockWise <span class="footer-dot">·</span> Built for better bakery decisions</span><span>French Bakery Daily Sales <span class="footer-dot">/</span> 2021–2022</span></footer>
+  </div>
 
   <script src="js/calc.js"></script>
   <script src="js/charts.js"></script>

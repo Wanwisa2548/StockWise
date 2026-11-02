@@ -13,7 +13,7 @@ Pages.manage = {
       <p class="sub">แก้ไขแล้วกด “บันทึก” ระบบจะอัปเดตฐานข้อมูลจริง และคำนวณทุกหน้าใหม่ทันที</p>
       <div id="m-msg">${M ? `<div class="${M.ok ? 'error flash-ok' : 'error'}">${App.esc(M.text)}</div>` : ''}</div>
       <div class="card"><h3>สินค้า</h3><div class="table-wrap"><table>
-        <thead><tr><th>สินค้า</th><th>ราคาทุน (บาท)</th><th>ราคาขาย (บาท)</th><th>ค่าสั่งซื้อ/ครั้ง (บาท)</th><th>Lead Time (วัน)</th><th>อายุสินค้า (วัน)</th><th></th></tr></thead>
+        <thead><tr><th>สินค้า</th><th>ราคาทุน (€)</th><th>ราคาขาย (€)</th><th>ค่าสั่งซื้อ/ครั้ง (€)</th><th>Lead Time (วัน)</th><th>อายุสินค้า (วัน)</th><th></th></tr></thead>
         <tbody>${d.products.map(p => `<tr data-pid="${p.id}">
           <td>${App.esc(p.name)}</td>
           ${['cost', 'price', 'order_cost'].map(f => `<td><input type="number" step="0.01" min="0.01" data-f="${f}" value="${p[f]}" style="width:90px"></td>`).join('')}

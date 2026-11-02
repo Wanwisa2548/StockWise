@@ -29,9 +29,10 @@ router.get('/data', async (req, res) => {
 
     // ยอดขายรายวัน: ใช้ view daily_sales แล้วเติม 0 ให้วันที่ไม่มียอด
     const dates = buildDates();
-    const dailyRows = (await pool.request().query(`
+    const dailyRows = (await pool.request()
+      .input('start', sql.Date, dates[0]).input('end', sql.Date, SIM_TODAY).query(`
       SELECT product_id, CONVERT(varchar(10), sale_date, 23) AS d, qty
-      FROM daily_sales`)).recordset;
+      FROM daily_sales WHERE sale_date >= @start AND sale_date < @end`)).recordset;
     const dateIdx = Object.fromEntries(dates.map((d, i) => [d, i]));
     const dailySales = {};
     products.forEach(p => { dailySales[p.id] = new Array(dates.length).fill(0); });
@@ -50,10 +51,12 @@ router.get('/data', async (req, res) => {
         FROM inventory_lots ORDER BY expiry_date, id`)).recordset;
 
     // รายการขายรายชิ้น (timestamp เป็นสตริงเวลาท้องถิ่น yyyy-mm-dd hh:mi:ss)
-    const transactions = (await pool.request().query(`
+    const transactions = (await pool.request()
+      .input('start', sql.Date, dates[0]).input('end', sql.Date, SIM_TODAY).query(`
       SELECT receipt_no, CONVERT(varchar(19), sold_at, 120) AS sold_at,
              product_id, qty, CAST(unit_price AS float) AS unit_price
-      FROM sales_transactions ORDER BY sold_at, id`)).recordset;
+      FROM sales_transactions WHERE sold_at >= @start AND sold_at < @end
+      ORDER BY sold_at, id`)).recordset;
 
     // ผลลัพธ์ที่บันทึกไว้: ใบสั่งซื้อ, โปรโมชั่น, ผลพยากรณ์และผลจัดกลุ่มชุดล่าสุด
     const orders = (await pool.request().query(`

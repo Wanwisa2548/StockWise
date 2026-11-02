@@ -20,7 +20,7 @@ Pages.order = {
         <div class="table-wrap" id="o-table"></div>
       </div>
       <div class="card">
-        <div class="bar-actions"><h3>ใบสั่งซื้อ</h3><span class="muted">กดปุ่ม "สั่งซื้อ" ในตารางด้านบนเพื่อบันทึกใบสั่งซื้อลงฐานข้อมูล (ตาราง purchase_orders)</span></div>
+        <div class="bar-actions"><h3>ใบสั่งซื้อ</h3><span class="muted">เลือกจำนวนสั่งซื้อที่แนะนำ แล้วติดตามการรับสินค้าได้ที่นี่</span></div>
         <div class="table-wrap" id="o-po"></div>
       </div>
       <div class="card">
