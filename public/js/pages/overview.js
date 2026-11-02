@@ -48,16 +48,18 @@ Pages.overview = {
     const forecastLabel = settings.method === 'ma' ? `Moving Average · ${settings.n} วัน` : `Exponential Smoothing · α ${fmt(settings.alpha, 2)}`;
 
     root.innerHTML = `
-      <div class="page-heading">
-        <div><span class="eyebrow">A FRESH PERSPECTIVE, EVERY DAY</span><h2>ภาพรวมร้านเบเกอรี่</h2><p>เข้าใจยอดขาย วางแผนให้พอดี และลดของเสียในทุกวัน</p></div>
-        <div class="heading-actions"><div class="date-range">${icon('calendar')}<span>${fullRange}</span></div><button type="button" class="btn" id="export-sales">${icon('download')}ส่งออกรายงาน</button></div>
+      <div class="page-heading bakery-hero">
+        <div class="bakery-hero-copy"><span class="hero-kicker">${icon('wheat')}FRESH BAKES. SMART DECISIONS.</span><h2>ภาพรวมร้านเบเกอรี่</h2><p>เข้าใจยอดขาย วางแผนให้พอดี และลดของเสียในทุกวัน</p>
+          <div class="heading-actions"><div class="date-range">${icon('calendar')}<span>${fullRange}</span></div><button type="button" class="btn" id="export-sales">${icon('download')}ส่งออกรายงาน</button></div>
+        </div>
+        <div class="bakery-hero-photo"><img src="assets/bakery-editorial.jpg" alt="" width="1536" height="1024" fetchpriority="high"><span class="hero-photo-caption">L’art du pain.</span></div>
       </div>
 
       <div class="grid cols-4 dashboard-metrics">
-        <div class="kpi primary-metric"><div class="metric-head"><span class="label">ยอดขายรวม</span><span class="metric-icon">${icon('revenue')}</span></div><div class="value">${money(revenue)}</div><div class="metric-foot">${change(revenue, previousRevenue)}</div></div>
-        <div class="kpi"><div class="metric-head"><span class="label">จำนวนสินค้าที่ขาย</span><span class="metric-icon">${icon('bread')}</span></div><div class="value">${fmt(pieces)}<span class="metric-unit">ชิ้น</span></div><div class="metric-foot">${change(pieces, previousPieces)}</div></div>
-        <div class="kpi"><div class="metric-head"><span class="label">จำนวนบิล</span><span class="metric-icon">${icon('receipt')}</span></div><div class="value">${fmt(receipts(rows))}<span class="metric-unit">บิล</span></div><div class="metric-foot">${change(receipts(rows), receipts(previousRows))}</div></div>
-        <div class="kpi"><div class="metric-head"><span class="label">พยากรณ์วันถัดไป</span><span class="metric-icon">${icon('forecast')}</span></div><div class="value">${fmt(nextDay)}<span class="metric-unit">ชิ้น</span></div><div class="metric-foot"><span class="delta">${App.shortDate(d.today)}</span><span>· ${forecastLabel}</span></div></div>
+        <div class="kpi primary-metric"><div class="metric-head"><span class="label">ยอดขายรวม</span><span class="metric-icon">${icon('revenue')}</span></div><div class="metric-value-row"><div class="value">${money(revenue)}</div>${BakeryVisuals.sparkline(currentValues)}</div><div class="metric-foot">${change(revenue, previousRevenue)}</div></div>
+        <div class="kpi"><div class="metric-head"><span class="label">จำนวนสินค้าที่ขาย</span><span class="metric-icon">${icon('bag')}</span></div><div class="metric-value-row"><div class="value">${fmt(pieces)}<span class="metric-unit">ชิ้น</span></div>${BakeryVisuals.sparkline(dates.map(date => sum(rows.filter(t => t.sold_at.startsWith(date)), t => t.qty)))}</div><div class="metric-foot">${change(pieces, previousPieces)}</div></div>
+        <div class="kpi"><div class="metric-head"><span class="label">จำนวนบิล</span><span class="metric-icon">${icon('receipt')}</span></div><div class="metric-value-row"><div class="value">${fmt(receipts(rows))}<span class="metric-unit">บิล</span></div>${BakeryVisuals.sparkline(dates.map(date => receipts(rows.filter(t => t.sold_at.startsWith(date)))))}</div><div class="metric-foot">${change(receipts(rows), receipts(previousRows))}</div></div>
+        <div class="kpi"><div class="metric-head"><span class="label">พยากรณ์วันถัดไป</span><span class="metric-icon">${icon('oven')}</span></div><div class="metric-value-row"><div class="value">${fmt(nextDay)}<span class="metric-unit">ชิ้น</span></div><span class="forecast-motif">${icon('wheat')}</span></div><div class="metric-foot"><span class="delta">${App.shortDate(d.today)}</span><span>· ${forecastLabel}</span></div></div>
       </div>
 
       <div class="dashboard-upper">
@@ -68,6 +70,7 @@ Pages.overview = {
         </section>
         <section class="card decision-card" aria-labelledby="decision-heading">
           <div><div class="decision-top">${icon('sparkle')}<span>DECISION SUPPORT</span></div><h3 id="decision-heading">อบให้พอดี<br>กับความต้องการของลูกค้า</h3><p class="decision-description">คำแนะนำสำหรับ ${App.thaiDate(d.today)}<br>จากยอดขายและสต็อกปัจจุบันของร้าน</p></div>
+          <div class="decision-illustration" aria-hidden="true">${BakeryVisuals.product({name:'baguette'}, 'decision-baguette')}${BakeryVisuals.product({name:'croissant'}, 'decision-croissant')}<span class="decision-seal">${icon('wheat')}<span>BAKE<br>WITH CARE</span></span></div>
           <div class="decision-stats"><div><strong>${orderToday.length.toString().padStart(2, '0')}</strong><small>สินค้าที่ควรสั่งวันนี้</small></div><div><strong>${(risky.length + expired.length).toString().padStart(2, '0')}</strong><small>ล็อตที่ควรดูแลก่อน</small></div></div>
           <button type="button" class="decision-button" data-go="${orderToday.length ? 'order' : risky.length + expired.length ? 'expiry' : 'forecast'}">ดูคำแนะนำการวางแผน ${icon('arrow')}</button>
         </section>
@@ -76,7 +79,7 @@ Pages.overview = {
       <div class="dashboard-lower">
         <section class="card" aria-labelledby="bestseller-heading">
           <div class="section-head"><div><h3 id="bestseller-heading">สินค้าขายดี</h3><p class="section-caption">5 อันดับตามรายได้ · ${count} วันล่าสุด</p></div><button class="text-button" type="button" data-go="sales">ดูยอดขายทั้งหมด ${icon('arrow')}</button></div>
-          <div class="best-sellers">${productTotals.slice(0, 5).map(({ p, revenue: amount, qty }, i) => `<div class="best-row"><span class="best-rank">${String(i + 1).padStart(2, '0')}</span><span class="product-thumbnail">${icon('bread')}</span><div class="product-info"><b title="${esc(p.name)}">${esc(englishName(p))}</b><small>${esc(shortName(p))} · ${fmt(qty)} ${esc(p.unit)}</small></div><div class="product-revenue">${money(amount)}<small>${revenue ? fmt(amount / revenue * 100, 1) : '0'}% ของรายได้</small></div></div>`).join('')}</div>
+          <div class="best-sellers">${productTotals.slice(0, 5).map(({ p, revenue: amount, qty }, i) => `<div class="best-row"><span class="best-rank ${i === 0 ? 'rank-first' : ''}">${i === 0 ? icon('wheat') : String(i + 1).padStart(2, '0')}</span><span class="product-thumbnail">${BakeryVisuals.product(p)}</span><div class="product-info"><b title="${esc(p.name)}">${esc(englishName(p))}</b><small>${esc(shortName(p))} · ${fmt(qty)} ${esc(p.unit)}</small></div><div class="product-revenue">${money(amount)}<small>${revenue ? fmt(amount / revenue * 100, 1) : '0'}% ของรายได้</small></div></div>`).join('')}</div>
         </section>
         <section class="card" aria-labelledby="insight-heading">
           <div class="section-head"><div><h3 id="insight-heading">ข้อมูลเล็ก ๆ เพื่อการตัดสินใจที่ดีขึ้น</h3><p class="section-caption">สิ่งที่ข้อมูลกำลังบอกคุณ</p></div>${icon('sparkle', 'insight-header-icon')}</div>
@@ -95,7 +98,7 @@ Pages.overview = {
           const cover = pl.d > 0 ? pl.stock / pl.d : null;
           const pct = pl.rop > 0 ? Math.min(100, Math.max(0, pl.stock / (pl.rop * 3) * 100)) : 100;
           const color = { red: 'var(--crit)', orange: 'var(--warn)', green: '#96a982' }[pl.status];
-          return `<tr><td>${esc(englishName(p))}</td><td>${fmt(pl.stock)} <span class="muted">${esc(p.unit)}</span></td><td>${fmt(pl.d, 1)}</td><td><div class="compact-stock" title="สต็อก ${fmt(pl.stock)} · จุดสั่งซื้อ ${fmt(pl.rop, 1)}"><span style="width:${pct}%;background:${color}"></span></div></td><td>${cover === null ? '—' : fmt(cover, 1) + ' วัน'}</td><td>${App.pendingOrder(p.id) ? '<span class="badge blue">รอรับสินค้า</span>' : `<span class="badge ${pl.status}">${pl.days <= 0 ? 'ควรสั่งวันนี้' : `สั่งใน ${pl.days} วัน`}</span>`}</td></tr>`;
+          return `<tr><td><span class="product-cell"><span class="table-product-art">${BakeryVisuals.product(p)}</span>${esc(englishName(p))}</span></td><td>${fmt(pl.stock)} <span class="muted">${esc(p.unit)}</span></td><td>${fmt(pl.d, 1)}</td><td><div class="compact-stock" title="สต็อก ${fmt(pl.stock)} · จุดสั่งซื้อ ${fmt(pl.rop, 1)}"><span style="width:${pct}%;background:${color}"></span></div></td><td>${cover === null ? '—' : fmt(cover, 1) + ' วัน'}</td><td>${App.pendingOrder(p.id) ? '<span class="badge blue">รอรับสินค้า</span>' : `<span class="badge ${pl.status}">${pl.days <= 0 ? 'ควรสั่งวันนี้' : `สั่งใน ${pl.days} วัน`}</span>`}</td></tr>`;
         }).join('')}</tbody></table></div>
       </section>`;
 

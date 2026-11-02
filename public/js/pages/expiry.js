@@ -18,8 +18,7 @@ Pages.expiry = {
     };
 
     root.innerHTML = `
-      <h2>สินค้าใกล้หมดอายุ</h2>
-      <p class="sub">ตรวจทุกล็อตแบบ FIFO (ขายล็อตที่หมดอายุก่อนก่อน) ว่าขายทันก่อนหมดอายุไหม โดยใช้ยอดขายพยากรณ์ต่อวันจากหน้าพยากรณ์</p>
+      ${BakeryVisuals.heading('expiry', 'ดูแลสินค้าใกล้หมดอายุ', 'ให้ทุกชิ้นขายได้ในเวลาที่เหมาะสม · ตรวจล็อตใกล้หมดอายุและวางแผนส่วนลดจากความต้องการจริง')}
       <div class="grid cols-4" style="margin-bottom:16px">
         <div class="kpi orange"><div class="label">ล็อตที่ควรจัดโปร</div><div class="value">${risky.length}</div><div class="note">ล็อตที่ขายไม่ทัน</div></div>
         <div class="kpi orange"><div class="label">จำนวนที่ขายไม่ทัน</div><div class="value">${App.fmt(risky.reduce((s, r) => s + r.unsold, 0))}</div><div class="note">ชิ้น</div></div>
@@ -45,7 +44,7 @@ Pages.expiry = {
           ${d0.promotions.map(p => { const lot = d0.lots.find(l => l.id === p.lot_id); const pr = lot ? App.product(lot.product_id) : null;
             return `<tr><td>${pr ? App.esc(pr.name) : '-'}</td><td>#${p.lot_id}</td><td>${p.discount_pct}%</td><td>${App.money(p.promo_price)}</td>
               <td>${p.start_at}</td><td>${p.end_at}</td><td><button type="button" class="btn go danger" data-del-promo="${p.id}">ยกเลิกโปร</button></td></tr>`; }).join('')}
-          </tbody></table></div>` : '<p class="muted">ยังไม่มีโปรโมชั่น เลือกส่วนลดที่แนะนำเพื่อเริ่มวางแผน</p>'}
+          </tbody></table></div>` : BakeryVisuals.empty('tag', 'พร้อมสำหรับโปรโมชั่นรอบใหม่', 'เลือกส่วนลดที่ระบบแนะนำ เพื่อช่วยให้ขนมทุกชิ้นขายได้ทันเวลา')}
       </div>
 
       <div class="card">
@@ -65,7 +64,7 @@ Pages.expiry = {
         <th>สินค้า</th><th>ล็อต</th><th>หมดอายุ</th><th>เหลือ (วัน)</th><th>จำนวน</th><th>ขายทัน</th><th>ขายไม่ทัน</th>
         <th>การดำเนินการ</th><th>ราคาโปร</th><th>เริ่มโปร</th><th>มูลค่าเสี่ยง</th><th>โปรโมชั่น</th></tr></thead><tbody>
         ${list.map(r => `<tr class="${r.expired ? 'row-red' : r.atRisk ? 'row-orange' : ''}">
-          <td>${App.esc(r.product.name)}</td><td>#${r.lot.id}</td><td>${App.shortDate(r.lot.expiry_date)}</td>
+          <td>${BakeryVisuals.productCell(r.product)}</td><td>#${r.lot.id}</td><td>${App.shortDate(r.lot.expiry_date)}</td>
           <td>${r.lot.days_left}</td><td>${App.fmt(r.lot.qty_remaining)}</td><td>${App.fmt(r.sellable)}</td>
           <td>${r.unsold ? `<b>${App.fmt(r.unsold)}</b>` : '0'}</td>
           <td><span class="badge ${r.expired ? 'red' : r.atRisk ? (r.discountPct ? 'orange' : 'gray') : 'green'}">${r.action}</span></td>

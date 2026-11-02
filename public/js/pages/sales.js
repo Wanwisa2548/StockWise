@@ -9,8 +9,7 @@ Pages.sales = {
     const state = { pid: 0, samplePid: d.products[0].id, sampleDate: d.dates[d.dates.length - 1] };
 
     root.innerHTML = `
-      <h2>รายการขาย (Timestamp)</h2>
-      <p class="sub">รายการขายย้อนหลัง ${d.dates.length} วัน · ${App.fmt(d.transactions.length)} รายการ · ${App.fmt(new Set(d.transactions.map(t => t.sold_at.slice(0, 10) + '|' + t.receipt_no)).size)} บิล เพื่อค้นหาช่วงเวลาขายดีและวางแผนโปรโมชั่น</p>
+      ${BakeryVisuals.heading('sales', 'วิเคราะห์ยอดขายรายวัน', `วิเคราะห์ยอดขายย้อนหลัง ${d.dates.length} วัน · ${App.fmt(d.transactions.length)} รายการ · ${App.fmt(new Set(d.transactions.map(t => t.sold_at.slice(0, 10) + '|' + t.receipt_no)).size)} บิล เพื่อค้นหาช่วงเวลาขายดี`)}
       <div class="card">
         <div class="controls"><label>สินค้า <select id="s-prod"><option value="0">ทุกสินค้า</option>${App.productOptions(0)}</select></label></div>
         <div id="s-kpi" class="grid cols-4" style="margin-bottom:12px"></div>
@@ -70,7 +69,7 @@ Pages.sales = {
     const recent = d.transactions.slice(-20).reverse();
     $('#s-recent').innerHTML = `<table><thead><tr><th>เวลา</th><th>เลขที่บิล</th><th class="left">สินค้า</th><th>จำนวน</th><th>ราคา/หน่วย</th><th>รวม</th></tr></thead><tbody>
       ${recent.map(t => `<tr><td>${App.shortDate(t.sold_at.slice(0, 10))} ${t.sold_at.slice(11, 16)}</td><td>${App.esc(t.receipt_no)}</td>
-        <td class="left">${App.esc(App.product(t.product_id).name)}</td><td>${t.qty}</td><td>${App.money(t.unit_price)}</td><td>${App.money(t.qty * t.unit_price)}</td></tr>`).join('')}
+        <td class="left">${BakeryVisuals.productCell(App.product(t.product_id))}</td><td>${t.qty}</td><td>${App.money(t.unit_price)}</td><td>${App.money(t.qty * t.unit_price)}</td></tr>`).join('')}
       </tbody></table>`;
 
     $('#s-prod').onchange = e => { state.pid = Number(e.target.value); drawHours(); };

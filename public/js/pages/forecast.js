@@ -5,8 +5,7 @@ Pages.forecast = {
     if (App.selProduct === null) App.selProduct = d.products[0].id;
 
     root.innerHTML = `
-      <h2>พยากรณ์ยอดขาย</h2>
-      <p class="sub">เลือกสินค้าและวิธีพยากรณ์ ระบบทดสอบย้อนหลังแบบ one-step-ahead กับยอดขายจริง 56 วัน</p>
+      ${BakeryVisuals.heading('forecast', 'พยากรณ์ยอดขาย', 'มองความต้องการล่วงหน้า เพื่อเตรียมขนมอบรอบถัดไปได้พอดี · วิเคราะห์จากยอดขายจริง 56 วัน')}
       <div class="card">
         <div class="controls">
           <label>สินค้า <select id="f-prod">${App.productOptions(App.selProduct)}</select></label>

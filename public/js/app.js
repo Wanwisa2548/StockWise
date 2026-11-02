@@ -98,7 +98,13 @@ const App = {
       bread: '<path d="M6 18 4 11a4 4 0 0 1 4-5h8a4 4 0 0 1 4 5l-2 7H6Z"/><path d="m8 7 2 6m2-7 2 7m2-7 2 6M7 21h10"/>',
       receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6m-6 4h3"/>',
       check: '<path d="m5 12 4 4L19 6"/>',
-      leaf: '<path d="M20 4C11 2 4 6 5 13s12 9 15-9ZM5 20 15 10"/>'
+      leaf: '<path d="M20 4C11 2 4 6 5 13s12 9 15-9ZM5 20 15 10"/>',
+      wheat: '<path d="M12 21V5m0 5C8 10 5 7 6 4c4 0 6 2 6 6Zm0 5c-4 0-7-2-7-5 4 0 7 2 7 5Zm0-5c4 0 7-3 6-6-4 0-6 2-6 6Zm0 5c4 0 7-2 7-5-4 0-7 2-7 5Zm0 5c-4 0-6-2-6-4 3 0 6 1 6 4Zm0 0c4 0 6-2 6-4-3 0-6 1-6 4Z"/>',
+      oven: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18m-13-2h.01M7 13h10v5H7zM11 2v2m5-2v2"/>',
+      tag: '<path d="m3 3 8 0 10 10-8 8L3 11V3Z"/><circle cx="7.5" cy="7.5" r="1"/>',
+      bag: '<path d="M5 7h14l2 14H3L5 7Z"/><path d="M8 8V6a4 4 0 0 1 8 0v2"/>',
+      bell: '<path d="M5 17h14l-2-4V9a5 5 0 0 0-10 0v4l-2 4Zm5 3h4"/>',
+      shield: '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/>'
     };
     return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[name] || paths.overview}</svg>`;
   },
@@ -188,6 +194,8 @@ const App = {
     this._w = window.innerWidth;
     window.addEventListener('resize', () => this.onResize());
     this.buildTabs();
+    document.querySelector('.brand-mark').innerHTML = BakeryVisuals.product({ name: 'croissant' });
+    document.querySelector('.leaf-icon').innerHTML = this.icon('leaf');
     document.getElementById('brand-home').onclick = e => { e.preventDefault(); this.show('overview'); };
     window.addEventListener('hashchange', () => this.show(location.hash.slice(1)));
     document.getElementById('refresh-data').onclick = async e => {

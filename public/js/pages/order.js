@@ -6,8 +6,7 @@ Pages.order = {
     const methodName = S.method === 'ma' ? `Moving Average n=${S.n}` : `Exponential Smoothing α=${S.alpha.toFixed(2)}`;
 
     root.innerHTML = `
-      <h2>แผนการสั่งซื้อ</h2>
-      <p class="sub">ใช้ค่าพยากรณ์ (d) และ RMSE (σ) จากหน้าพยากรณ์ — วิธีที่ใช้อยู่: <b>${methodName}</b></p>
+      ${BakeryVisuals.heading('order', 'วางแผนจัดซื้อรอบถัดไป', `วางแผนจำนวนสั่งซื้อให้สัมพันธ์กับยอดขายและอายุสินค้า · ใช้ค่าพยากรณ์ ${methodName}`)}
       <div class="card">
         <div class="controls">
           <label>ระดับการให้บริการ (Service Level)
@@ -52,7 +51,7 @@ Pages.order = {
       // เรียงตามความเร่งด่วน (จำนวนวันก่อนต้องสั่งน้อยสุดขึ้นก่อน)
       const rows = plans.slice().sort((a, b) => a.pl.days - b.pl.days).map(({ p, pl }) => `
         <tr class="${pl.status === 'red' ? 'row-red' : ''}">
-          <td>${App.esc(p.name)}</td>
+          <td>${BakeryVisuals.productCell(p)}</td>
           <td>${App.fmt(pl.d, 1)}</td><td>${App.fmt(pl.eoq)}</td>
           <td><b>${App.fmt(pl.qty)}</b> ${App.esc(p.unit)}${pl.limited ? ' <span class="badge blue">จำกัดอายุ</span>' : ''}</td>
           <td>${App.fmt(pl.safety, 1)}</td><td>${App.fmt(pl.rop, 1)}</td><td>${App.fmt(pl.stock)}</td>
@@ -74,7 +73,7 @@ Pages.order = {
             <td>${App.shortDate(o.expected_date)}</td><td><span class="badge ${c}">${t}</span></td>
             <td>${o.status === 'ordered' ? `<div class="row-actions"><button type="button" class="btn go" data-recv="${o.id}">รับของแล้ว</button><button type="button" class="btn go danger" data-cancel="${o.id}">ยกเลิก</button></div>`
               : o.status === 'cancelled' ? `<button type="button" class="btn go danger" data-del-po="${o.id}">ลบ</button>` : ''}</td></tr>`; }).join('')}</tbody></table>`
-        : '<p class="muted">ยังไม่มีใบสั่งซื้อ</p>';
+        : BakeryVisuals.empty('bag', 'เริ่มวางแผนขนมอบรอบถัดไป', 'เลือกสินค้าจากคำแนะนำด้านบน เพื่อสร้างใบสั่งซื้อและติดตามการรับของ');
 
       // กราฟจำลองสต็อก 30 วันของสินค้าที่เลือก
       const cur = plans.find(x => x.p.id === App.selProduct), pl = cur.pl;

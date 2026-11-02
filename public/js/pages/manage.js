@@ -9,13 +9,12 @@ Pages.manage = {
     const M = this.msg; this.msg = null;
 
     root.innerHTML = `
-      <h2>ข้อมูลสินค้า</h2>
-      <p class="sub">แก้ไขแล้วกด “บันทึก” ระบบจะอัปเดตฐานข้อมูลจริง และคำนวณทุกหน้าใหม่ทันที</p>
+      ${BakeryVisuals.heading('manage', 'สินค้าและสต็อก', 'ดูแลคอลเลกชันขนมอบ ราคา และล็อตสินค้า · บันทึกการแก้ไขเพื่ออัปเดตแผนของร้าน')}
       <div id="m-msg">${M ? `<div class="${M.ok ? 'error flash-ok' : 'error'}">${App.esc(M.text)}</div>` : ''}</div>
       <div class="card"><h3>สินค้า</h3><div class="table-wrap"><table>
         <thead><tr><th>สินค้า</th><th>ราคาทุน (€)</th><th>ราคาขาย (€)</th><th>ค่าสั่งซื้อ/ครั้ง (€)</th><th>Lead Time (วัน)</th><th>อายุสินค้า (วัน)</th><th></th></tr></thead>
         <tbody>${d.products.map(p => `<tr data-pid="${p.id}">
-          <td>${App.esc(p.name)}</td>
+          <td>${BakeryVisuals.productCell(p)}</td>
           ${['cost', 'price', 'order_cost'].map(f => `<td><input type="number" step="0.01" min="0.01" data-f="${f}" value="${p[f]}" style="width:90px"></td>`).join('')}
           ${['lead_time_days', 'shelf_life_days'].map(f => `<td><input type="number" step="1" min="1" data-f="${f}" value="${p[f]}" style="width:80px"></td>`).join('')}
           <td><button class="btn" data-save-product>บันทึก</button></td></tr>`).join('')}

@@ -6,8 +6,7 @@ Pages.cluster = {
     const d = App.data, S = App.settings;
     if (!S.k) S.k = 3;
     root.innerHTML = `
-      <h2>จัดกลุ่มสินค้า (K-means)</h2>
-      <p class="sub">จัดสินค้าที่มีลักษณะคล้ายกัน (ยอดขายต่อวัน และอายุสินค้า) ไว้กลุ่มเดียวกัน เพื่อกำหนดนโยบายสต็อกร่วมกัน</p>
+      ${BakeryVisuals.heading('cluster', 'จัดกลุ่มสินค้าเบเกอรี่', 'จัดกลุ่มขนมอบตามยอดขายและอายุสินค้า ด้วย K-means เพื่อเลือกแผนสต็อกที่เหมาะกับแต่ละกลุ่ม')}
       <div class="card">
         <div class="controls"><label>จำนวนกลุ่ม (k)
           <span class="seg" id="c-k">${[2, 3, 4, 5].map(k => `<button data-k="${k}">${k}</button>`).join('')}</span></label>
@@ -70,7 +69,7 @@ Pages.cluster = {
 
       $('#c-cards').innerHTML = r.groups.map(g => `
         <div class="card" style="border-top:4px solid ${C[g.id]};margin:0">
-          <h3>${g.name}</h3>
+          <div class="cluster-family-art">${g.members.slice(0, 3).map(p => BakeryVisuals.product(p)).join('')}</div><h3>${g.name}</h3>
           <p>${g.members.map(p => `<span class="badge gray">${App.esc(p.name)}</span>`).join(' ')}</p>
           <p class="muted">ยอดขายเฉลี่ย (geo mean) ${App.fmt(g.gmSales, 1)} ชิ้น/วัน · อายุเฉลี่ย ${App.fmt(g.gmLife, 1)} วัน</p>
           <p><b>นโยบายที่แนะนำ:</b> ${g.policy}</p>
