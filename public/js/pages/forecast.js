@@ -30,8 +30,7 @@ Pages.forecast = {
           <button type="button" class="btn" id="f-save">บันทึกผลพยากรณ์ทุกสินค้า</button></div>
         <p class="muted" id="f-saved-note"></p>
         <div class="table-wrap" id="f-saved"></div>
-      </div>
-      <div class="card formula" id="f-formula"></div>`;
+      </div>`;
 
     // ผลพยากรณ์ชุดล่าสุดที่บันทึกไว้ในฐานข้อมูล (ตาราง forecasts)
     const drawSaved = () => {
@@ -106,11 +105,6 @@ Pages.forecast = {
 
       $('#f-table').innerHTML = `<table><thead><tr><th>วันที่</th>${futureDates.map(x => `<th>${App.shortDate(x)}</th>`).join('')}</tr></thead>
         <tbody><tr><td>พยากรณ์ (${App.esc(p.unit)})</td>${fc.future.map(v => `<td>${App.fmt(v, 1)}</td>`).join('')}</tr><tr><td>ช่วงคาดการณ์ ${levelText}</td>${futureDates.map((_, i) => `<td>${i === 0 && confidence.available ? App.fmt(Math.floor(confidence.lo)) + '–' + App.fmt(Math.ceil(confidence.hi)) : '—'}</td>`).join('')}</tr></tbody></table><p class="muted interval-disclaimer">ช่วงคาดการณ์เป็นค่าประมาณสำหรับวันถัดไป ภายใต้สมมติฐานความคลาดเคลื่อนใกล้การแจกแจงปกติ</p>`;
-
-      $('#f-formula').innerHTML = S.method === 'ma'
-        ? `Moving Average: ค่าพยากรณ์ของวันถัดไป = ค่าเฉลี่ยยอดขาย ${S.n} วันล่าสุด (ตัวอย่าง: ${series.slice(-S.n).slice(-7).join(', ')}${S.n > 7 ? ' …' : ''} → d = ${App.fmt(fc.d, 1)})`
-        : `Exponential Smoothing: ระดับใหม่ = α × ยอดจริง + (1 − α) × ระดับเดิม, α = ${S.alpha.toFixed(2)} ยิ่ง α สูงยิ่งตามยอดล่าสุดเร็ว`;
-      $('#f-formula').innerHTML += `<br>ช่วงคาดการณ์วันถัดไป = max(0, d ± z × RMSE), Confidence ${levelText}, z = ${App.fmt(confidence.z, 4)} · Coverage ทดสอบตามลำดับเวลา โดยใช้ความคลาดเคลื่อนอย่างน้อย 14 จุดก่อนวันทดสอบเท่านั้น`;
     }
 
     drawParam(); update();
