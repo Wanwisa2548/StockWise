@@ -49,7 +49,50 @@ Calc.forecast = function (series, method, param) {
   }
   const rows = [];
   series.forEach((a, t) => { if (fitted[t] !== null) rows.push({ a, f: fitted[t] }); });
-  return { d, fitted, metrics: Calc.errorMetrics(rows), future: new Array(14).fill(d) };
+  return { d, fitted, metrics: Calc.errorMetrics(rows), residuals: rows.map(r => r.a - r.f), future: new Array(14).fill(d) };
+};
+
+// Two-sided normal quantiles for prediction intervals, separate from one-sided ROP service levels.
+Calc.PREDICTION_Z = { 0.90: 1.6448536269514722, 0.95: 1.959963984540054, 0.99: 2.5758293035489004 };
+
+// Approximate NEXT-DAY prediction interval: forecast +/- z * one-step backtest RMSE.
+// Coverage is evaluated chronologically using only errors preceding each tested day.
+Calc.forecastConfidence = function (series, fc, level = 0.95) {
+  const z = Calc.PREDICTION_Z[level];
+  if (!z) throw new RangeError('Unsupported prediction interval level');
+  const samples = fc.fitted.filter(v => v !== null && Number.isFinite(v)).length;
+  const available = samples >= 2 && Number.isFinite(fc.d) && Number.isFinite(fc.metrics.rmse);
+  const radius = available ? z * fc.metrics.rmse : null;
+  let squaredErrors = 0, previousErrors = 0, hits = 0;
+  const checks = [];
+  series.forEach((actual, index) => {
+    const predicted = fc.fitted[index];
+    if (predicted === null || !Number.isFinite(predicted) || !Number.isFinite(actual)) return;
+    if (previousErrors >= 14) {
+      const priorRmse = Math.sqrt(squaredErrors / previousErrors);
+      const margin = z * priorRmse;
+      const lo = Math.max(0, predicted - margin), hi = Math.max(0, predicted + margin);
+      const covered = actual >= lo && actual <= hi;
+      if (covered) hits++;
+      checks.push({ index, predicted, priorSamples: previousErrors, priorSquaredErrors: squaredErrors, priorRmse, margin, lo, hi, actual, covered });
+    }
+    squaredErrors += (actual - predicted) ** 2;
+    previousErrors++;
+  });
+  return {
+    level, z, available, samples, rmse: fc.metrics.rmse,
+    lo: available ? Math.max(0, fc.d - radius) : null,
+    hi: available ? Math.max(0, fc.d + radius) : null,
+    backtest: { hits, tested: checks.length, coverage: checks.length ? hits / checks.length : null, checks }
+  };
+};
+
+// Forecast the combined daily demand directly, preserving correlations between products.
+Calc.totalForecast = function (data, settings) {
+  const series = data.dates.map((_, index) => data.products.reduce((sum, product) => sum + data.dailySales[product.id][index], 0));
+  const param = settings.method === 'es' ? settings.alpha : settings.n;
+  const forecast = Calc.forecast(series, settings.method, param);
+  return { series, forecast, confidence: Calc.forecastConfidence(series, forecast, settings.confidenceLevel || 0.95) };
 };
 
 // พยากรณ์ของสินค้าทุกชิ้นด้วยค่าที่ผู้ใช้ตั้ง (ใช้ในหลายหน้า)
@@ -99,6 +142,38 @@ Calc.plan = function (p, fc, stock, opts) {
   const status = days <= 0 ? 'red' : days <= 3 ? 'orange' : 'green';
   const orderDate = opts.today ? Calc.addDays(opts.today, Math.max(days, 0)) : null;
   return { d, sigma, z, D, H, eoq, cap, limited, qty, safety, rop, stock, days, status, orderDate };
+};
+
+// Auditable calculation steps use exactly the same forecast, interval and EOQ as the dashboard.
+Calc.calculationDetails = function (data, product, settings) {
+  const series = data.dailySales[product.id];
+  const parameter = settings.method === 'es' ? settings.alpha : settings.n;
+  const forecast = Calc.forecast(series, settings.method, parameter);
+  const confidence = Calc.forecastConfidence(series, forecast, settings.confidenceLevel || .95);
+  const plan = Calc.plan(product, forecast, Calc.stockByProduct(data)[product.id], { ...settings, today: data.today });
+  const rows = series.map((actual, index) => {
+    const predicted = forecast.fitted[index];
+    const error = predicted === null ? null : actual - predicted;
+    return { index, date: data.dates[index], actual, predicted, error, squaredError: error === null ? null : error ** 2 };
+  });
+  const errors = rows.filter(row => row.error !== null);
+  const squaredErrorSum = errors.reduce((sum, row) => sum + row.squaredError, 0);
+  const recentRows = rows.slice(-settings.n);
+  const smoothing = settings.method === 'es' ? rows.slice(1).map(row => ({
+    ...row, previousLevel: row.predicted,
+    actualPart: parameter * row.actual, previousPart: (1 - parameter) * row.predicted,
+    nextLevel: parameter * row.actual + (1 - parameter) * row.predicted
+  })) : [];
+  return {
+    product, settings: { ...settings }, today: data.today, dates: [...data.dates], forecast, confidence, plan,
+    rows, errors, squaredErrorSum, meanSquaredError: errors.length ? squaredErrorSum / errors.length : null,
+    recentRows, recentSum: recentRows.reduce((sum, row) => sum + row.actual, 0), smoothing,
+    numerator: 2 * plan.D * product.order_cost,
+    radicand: plan.H > 0 ? 2 * plan.D * product.order_cost / plan.H : null,
+    margin: confidence.available ? confidence.z * confidence.rmse : null,
+    rawLower: confidence.available ? forecast.d - confidence.z * confidence.rmse : null,
+    rawUpper: confidence.available ? forecast.d + confidence.z * confidence.rmse : null
+  };
 };
 
 // บวก/ลบวันของสตริง yyyy-mm-dd

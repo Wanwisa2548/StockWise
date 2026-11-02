@@ -5,7 +5,7 @@ const Pages = {};
 const App = {
   data: null,          // ผลจาก /api/data
   // ค่าที่ผู้ใช้ปรับได้ และใช้ร่วมกันหลายหน้า (พยากรณ์ → แผนสั่งซื้อ → ภาพรวม)
-  settings: { method: 'ma', n: 7, alpha: 0.30, serviceLevel: 0.95, holdRate: 0.25 },
+  settings: { method: 'ma', n: 7, alpha: 0.30, confidenceLevel: 0.95, serviceLevel: 0.95, holdRate: 0.25 },
   tabs: [
     { key: 'overview', label: 'ภาพรวมร้าน', icon: 'overview' },
     { key: 'sales',    label: 'วิเคราะห์ยอดขาย', icon: 'sales' },
@@ -81,6 +81,20 @@ const App = {
   // จัดรูปแบบตัวเลขมีจุลภาค เช่น 1361 → "1,361", 42.3 → "42.3"
   fmt(n, dec = 0) { return Number(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }); },
   money(n, dec = 2) { return '€' + this.fmt(n, dec); },
+  downloadCSV(filename, rows) {
+    const cell = value => {
+      if (typeof value === 'number') return Number.isFinite(value) ? String(value) : '';
+      let text = String(value ?? '');
+      if (/^[\s]*[=+\-@]/.test(text)) text = "'" + text;
+      return '"' + text.replace(/"/g, '""') + '"';
+    };
+    const csv = rows.map(row => row.map(cell).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url; link.download = filename;
+    document.body.appendChild(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
   icon(name, className = '') {
     const paths = {
       overview: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',

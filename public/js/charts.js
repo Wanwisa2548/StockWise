@@ -25,7 +25,7 @@ Charts.niceScale = function (min, max, ticks = 5) {
 // กราฟเส้น
 //   labels  = ป้ายแกน x, series = [{ name, color, values, dash?, width? }] (null = ไม่วาด)
 //   splitAt = ดัชนีที่เริ่มช่วง "พยากรณ์อนาคต" (ระบายพื้นหลังจางๆ)
-//   band    = { from, lo, hi } แถบความคลาดเคลื่อนตั้งแต่ดัชนี from เป็นต้นไป
+//   band    = { from, to?, lo, hi } แถบช่วงคาดการณ์ (to = วันสุดท้ายที่ช่วงนี้ใช้ได้)
 Charts.line = function ({ labels, series, height = 300, width = 760, splitAt = null, band = null, fmt = v => v, yMin = 0, hideLegend = false }) {
   const W = width, H = height, m = { l: 46, r: 12, t: 12, b: 28 };
   const all = series.flatMap(s => s.values).filter(v => v !== null && v !== undefined);
@@ -48,7 +48,9 @@ Charts.line = function ({ labels, series, height = 300, width = 760, splitAt = n
     g += `<rect x="${x(splitAt) - 0.5}" y="${m.t}" width="${W - m.r - x(splitAt) + 0.5}" height="${H - m.t - m.b}" style="fill:var(--surface-2)"/>`;
   }
   if (band) {
-    const a = x(band.from), b = x(n - 1);
+    const slot = (W - m.l - m.r) / Math.max(n - 1, 1);
+    const a = Math.max(m.l, x(band.from) - slot / 2);
+    const b = Math.min(W - m.r, x(band.to ?? n - 1) + slot / 2);
     g += `<polygon points="${a},${y(Math.max(0, band.lo))} ${b},${y(Math.max(0, band.lo))} ${b},${y(band.hi)} ${a},${y(band.hi)}" style="fill:var(--band)"/>`;
   }
   series.forEach(s => {

@@ -1,6 +1,7 @@
 // Bakery dashboard: all metrics, comparisons and recommendations use the selected sales window.
 Pages.overview = {
   period: 28,
+  workedOpen: false,
 
   render(root) {
     const d = App.data, settings = App.settings;
@@ -46,6 +47,16 @@ Pages.overview = {
     const englishName = p => (p.name.match(/\(([^)]+)\)/) || [null, p.name])[1];
     const fullRange = `${App.shortDate(dates[0])} – ${App.thaiDate(dates[dates.length - 1])}`;
     const forecastLabel = settings.method === 'ma' ? `Moving Average · ${settings.n} วัน` : `Exponential Smoothing · α ${fmt(settings.alpha, 2)}`;
+    const confidenceLevel = settings.confidenceLevel || 0.95;
+    const confidenceLabel = fmt(confidenceLevel * 100) + '%';
+    const selectedPlan = plans.find(x => x.p.id === App.selProduct) || topForecast;
+    const selectedProduct = selectedPlan.p, selected = selectedPlan.pl;
+    App.selProduct = selectedProduct.id;
+    const confidence = Calc.forecastConfidence(d.dailySales[selectedProduct.id], fcs[selectedProduct.id], confidenceLevel);
+    const totalConfidence = Calc.totalForecast(d, settings).confidence;
+    const rangeText = ci => ci.available ? `${fmt(Math.floor(ci.lo))}–${fmt(Math.ceil(ci.hi))}` : '—';
+    const marker = confidence.available && confidence.hi > confidence.lo ? Math.max(0, Math.min(100, (selected.d - confidence.lo) / (confidence.hi - confidence.lo) * 100)) : 50;
+    const coverage = confidence.backtest;
 
     root.innerHTML = `
       <div class="page-heading bakery-hero">
@@ -59,8 +70,32 @@ Pages.overview = {
         <div class="kpi primary-metric"><div class="metric-head"><span class="label">ยอดขายรวม</span><span class="metric-icon">${icon('revenue')}</span></div><div class="metric-value-row"><div class="value">${money(revenue)}</div>${BakeryVisuals.sparkline(currentValues)}</div><div class="metric-foot">${change(revenue, previousRevenue)}</div></div>
         <div class="kpi"><div class="metric-head"><span class="label">จำนวนสินค้าที่ขาย</span><span class="metric-icon">${icon('bag')}</span></div><div class="metric-value-row"><div class="value">${fmt(pieces)}<span class="metric-unit">ชิ้น</span></div>${BakeryVisuals.sparkline(dates.map(date => sum(rows.filter(t => t.sold_at.startsWith(date)), t => t.qty)))}</div><div class="metric-foot">${change(pieces, previousPieces)}</div></div>
         <div class="kpi"><div class="metric-head"><span class="label">จำนวนบิล</span><span class="metric-icon">${icon('receipt')}</span></div><div class="metric-value-row"><div class="value">${fmt(receipts(rows))}<span class="metric-unit">บิล</span></div>${BakeryVisuals.sparkline(dates.map(date => receipts(rows.filter(t => t.sold_at.startsWith(date)))))}</div><div class="metric-foot">${change(receipts(rows), receipts(previousRows))}</div></div>
-        <div class="kpi"><div class="metric-head"><span class="label">พยากรณ์วันถัดไป</span><span class="metric-icon">${icon('oven')}</span></div><div class="metric-value-row"><div class="value">${fmt(nextDay)}<span class="metric-unit">ชิ้น</span></div><span class="forecast-motif">${icon('wheat')}</span></div><div class="metric-foot"><span class="delta">${App.shortDate(d.today)}</span><span>· ${forecastLabel}</span></div></div>
+        <div class="kpi"><div class="metric-head"><span class="label">พยากรณ์วันถัดไป</span><span class="metric-icon">${icon('oven')}</span></div><div class="metric-value-row"><div class="value">${fmt(nextDay)}<span class="metric-unit">หน่วยขาย</span></div><span class="forecast-motif">${icon('wheat')}</span></div><div class="metric-foot"><span class="delta">ช่วง ${confidenceLabel}</span><span>${rangeText(totalConfidence)} หน่วยขาย</span></div></div>
       </div>
+
+      <section class="planning-section" aria-labelledby="planning-heading">
+        <div class="planning-section-head"><div><h3 id="planning-heading">${icon('shield')}Confidence & EOQ</h3><p class="section-caption">คำนวณจากยอดขาย ${d.dates.length} วัน · ${forecastLabel} · วางแผน ${App.thaiDate(d.today)}</p></div><button type="button" class="btn secondary" id="export-planning">${icon('download')}ส่งออกผลคำนวณ CSV</button></div>
+        <div class="planning-controls"><label>สินค้า<select id="dashboard-product">${App.productOptions(selectedProduct.id)}</select></label><label>Confidence (ช่วงคาดการณ์)<select id="dashboard-confidence">${[0.90, 0.95, 0.99].map(v => `<option value="${v}" ${confidenceLevel === v ? 'selected' : ''}>${fmt(v * 100)}%</option>`).join('')}</select></label><button type="button" class="text-button" data-go="forecast">ปรับวิธีพยากรณ์ ${icon('arrow')}</button></div>
+        <div class="planning-grid">
+          <section class="card confidence-card" aria-labelledby="confidence-heading"><div class="section-head"><div><h3 id="confidence-heading">ช่วงคาดการณ์วันถัดไป</h3><p class="section-caption">${esc(englishName(selectedProduct))} · Confidence ${confidenceLabel}</p></div><span class="planning-icon">${icon('shield')}</span></div>
+            <div class="interval-value" id="dashboard-interval">${rangeText(confidence)} <small>${esc(selectedProduct.unit)}</small></div>
+            <div class="confidence-range" aria-hidden="true"><span style="left:${marker}%"></span></div>
+            <div class="confidence-range-labels"><span>ขอบล่าง</span><b>พยากรณ์ ${fmt(selected.d, 1)} ${esc(selectedProduct.unit)}</b><span>ขอบบน</span></div>
+            <div class="coverage-row"><div><span>ครอบคลุมจริงย้อนหลัง</span><b id="dashboard-coverage">${coverage.coverage === null ? '—' : fmt(coverage.coverage * 100, 1) + '%'}</b></div><small>${coverage.hits}/${coverage.tested} วันทดสอบ<br>RMSE ${fmt(confidence.rmse, 2)} · ${confidence.samples} จุดย้อนหลัง</small></div>
+            <p class="interval-disclaimer">ช่วงประมาณ d ± ${fmt(confidence.z, 4)} × RMSE · ขอบล่างไม่ต่ำกว่า 0 · ตรวจ Coverage ด้วยข้อมูลก่อนวันทดสอบเท่านั้น</p>
+            <button type="button" class="text-button" data-calculation="confidence">${icon('receipt')}ดูการแทนค่า Confidence ทีละขั้น ${icon('arrow')}</button>
+          </section>
+          <section class="card eoq-card" aria-labelledby="eoq-heading"><div class="section-head"><div><h3 id="eoq-heading">จำนวนสั่งซื้อที่เหมาะสม (EOQ)</h3><p class="section-caption">${esc(englishName(selectedProduct))} · ${selected.limited ? 'ปรับจำนวนตามอายุสินค้า' : 'ใช้จำนวนตามสูตร EOQ'}</p></div><span class="planning-icon wheat">${icon('order')}</span></div>
+            <div class="eoq-values"><div><span>EOQ ตามสูตร</span><strong id="dashboard-eoq">${fmt(selected.eoq, 1)}</strong><small>${esc(selectedProduct.unit)} / ครั้ง</small></div><div><span>จำนวนแนะนำสั่งจริง</span><strong id="dashboard-order-qty">${fmt(selected.qty)}</strong><small>${esc(selectedProduct.unit)} / ครั้ง ${selected.limited ? '<span class="badge orange">จำกัดอายุสินค้า</span>' : ''}</small></div></div>
+            <dl class="eoq-inputs"><div><dt>D · ความต้องการ / ปี</dt><dd>${fmt(selected.D, 1)} ${esc(selectedProduct.unit)}</dd></div><div><dt>S · ค่าสั่งซื้อ / ครั้ง</dt><dd>${money(selectedProduct.order_cost)}</dd></div><div><dt>H · ค่าเก็บ / หน่วย / ปี</dt><dd>${money(selected.H, 4)}</dd></div><div><dt>อายุสินค้า / Lead time</dt><dd>${selectedProduct.shelf_life_days} / ${selectedProduct.lead_time_days} วัน</dd></div></dl>
+            <p class="interval-disclaimer">EOQ = √(2DS/H) · D = พยากรณ์รายวัน × 365 · H = ต้นทุน ${money(selectedProduct.cost)} × อัตราเก็บ ${fmt(settings.holdRate * 100)}%/ปี</p>
+            <button type="button" class="text-button" data-go="order">ดู Safety Stock, ROP และปรับอัตราเก็บ ${icon('arrow')}</button>
+            <button type="button" class="text-button" data-calculation="eoq">${icon('receipt')}ดูการแทนค่า EOQ ทีละขั้น ${icon('arrow')}</button>
+          </section>
+        </div>
+        <details id="calculation-workbook" class="calculation-workbook" ${this.workedOpen ? 'open' : ''}><summary><span>${icon('receipt')}แสดงวิธีคำนวณทีละขั้น</span><small>สูตร · ค่าที่แทน · ตารางตรวจย้อนหลัง · สำหรับนำเสนอ</small></summary><div class="worked-toolbar"><span>เปลี่ยนสินค้าหรือระดับ Confidence ด้านบนเพื่อคำนวณชุดใหม่</span><button type="button" class="btn secondary" id="export-worked-calculation">${icon('download')}บันทึกใบคำนวณออฟไลน์</button></div><div id="calculation-detail-root"></div></details>
+        <details class="planning-method"><summary>ที่มาข้อมูลและสมมติฐานการคำนวณ</summary><p>ใช้ยอดขายที่นำเข้าในฐานข้อมูลช่วง ${App.thaiDate(d.dates[0])} – ${App.thaiDate(d.dates.at(-1))} จำนวน ${fmt(d.transactions.length)} รายการ และต้นทุน ค่าสั่งซื้อ อายุสินค้า จากข้อมูลสินค้าปัจจุบัน อัตราเก็บรักษา ${fmt(settings.holdRate * 100)}%/ปีเป็นค่าที่ตั้งในแผนจัดซื้อ</p><p>Confidence ${confidenceLabel} เป็นระดับเป้าหมายของช่วงคาดการณ์แบบสองด้านโดยประมาณ ภายใต้สมมติฐานความคลาดเคลื่อนใกล้การแจกแจงปกติ ส่วน Coverage เป็นผลทดสอบจริงตามลำดับเวลา โดยเริ่มทดสอบเมื่อมีความคลาดเคลื่อนก่อนหน้าอย่างน้อย 14 จุด</p><p>จำนวนแนะนำสั่งจริงจำกัดที่ยอดขายพยากรณ์ × อายุสินค้า เมื่อ EOQ สูงกว่าจำนวนที่ขายทัน ระดับบริการ ${fmt(settings.serviceLevel * 100)}% ใช้คำนวณ Safety Stock/ROP แยกจากระดับ Confidence</p></details>
+      </section>
 
       <div class="dashboard-upper">
         <section class="card sales-chart-card" aria-labelledby="sales-heading">
@@ -93,12 +128,13 @@ Pages.overview = {
       </div>
 
       <section class="card stock-card" aria-labelledby="stock-heading"><div class="section-head"><div><h3 id="stock-heading" class="status-title">สถานะสต็อก <small>${d.products.length} รายการ</small></h3><p class="section-caption">วางแผนสำหรับ ${App.thaiDate(d.today)} · ระดับบริการ ${fmt(settings.serviceLevel * 100)}%</p></div><button type="button" class="text-button" data-go="manage">จัดการสินค้า ${icon('arrow')}</button></div>
-        <div class="table-wrap"><table><thead><tr><th>สินค้า</th><th>สต็อกปัจจุบัน</th><th>ความต้องการ / วัน</th><th>สต็อกเทียบจุดสั่งซื้อ</th><th>พอขายได้</th><th>คำแนะนำ</th></tr></thead><tbody>
+        <div class="table-wrap"><table><thead><tr><th>สินค้า</th><th>สต็อกปัจจุบัน</th><th>ความต้องการ / วัน</th><th>ช่วงคาดการณ์ ${confidenceLabel}</th><th>EOQ / ครั้ง</th><th>แนะนำสั่ง / ครั้ง</th><th>สต็อกเทียบจุดสั่งซื้อ</th><th>พอขายได้</th><th>คำแนะนำ</th></tr></thead><tbody>
         ${plans.map(({ p, pl }) => {
           const cover = pl.d > 0 ? pl.stock / pl.d : null;
           const pct = pl.rop > 0 ? Math.min(100, Math.max(0, pl.stock / (pl.rop * 3) * 100)) : 100;
           const color = { red: 'var(--crit)', orange: 'var(--warn)', green: '#96a982' }[pl.status];
-          return `<tr><td><span class="product-cell"><span class="table-product-art">${BakeryVisuals.product(p)}</span>${esc(englishName(p))}</span></td><td>${fmt(pl.stock)} <span class="muted">${esc(p.unit)}</span></td><td>${fmt(pl.d, 1)}</td><td><div class="compact-stock" title="สต็อก ${fmt(pl.stock)} · จุดสั่งซื้อ ${fmt(pl.rop, 1)}"><span style="width:${pct}%;background:${color}"></span></div></td><td>${cover === null ? '—' : fmt(cover, 1) + ' วัน'}</td><td>${App.pendingOrder(p.id) ? '<span class="badge blue">รอรับสินค้า</span>' : `<span class="badge ${pl.status}">${pl.days <= 0 ? 'ควรสั่งวันนี้' : `สั่งใน ${pl.days} วัน`}</span>`}</td></tr>`;
+          const productConfidence = Calc.forecastConfidence(d.dailySales[p.id], fcs[p.id], confidenceLevel);
+          return `<tr><td><span class="product-cell"><span class="table-product-art">${BakeryVisuals.product(p)}</span>${esc(englishName(p))}</span></td><td>${fmt(pl.stock)} <span class="muted">${esc(p.unit)}</span></td><td>${fmt(pl.d, 1)}</td><td>${rangeText(productConfidence)}</td><td>${fmt(pl.eoq, 1)}</td><td><b>${fmt(pl.qty)}</b>${pl.limited ? ' <span class="badge orange">จำกัดอายุ</span>' : ''}</td><td><div class="compact-stock" title="สต็อก ${fmt(pl.stock)} · จุดสั่งซื้อ ${fmt(pl.rop, 1)}"><span style="width:${pct}%;background:${color}"></span></div></td><td>${cover === null ? '—' : fmt(cover, 1) + ' วัน'}</td><td>${App.pendingOrder(p.id) ? '<span class="badge blue">รอรับสินค้า</span>' : `<span class="badge ${pl.status}">${pl.days <= 0 ? 'ควรสั่งวันนี้' : `สั่งใน ${pl.days} วัน`}</span>`}</td></tr>`;
         }).join('')}</tbody></table></div>
       </section>`;
 
@@ -111,9 +147,23 @@ Pages.overview = {
       ], fmt: value => fmt(value), hideLegend: true
     });
     root.querySelectorAll('[data-go]').forEach(button => button.onclick = () => App.show(button.dataset.go));
+    CalculationDetails.mount(root, Calc.calculationDetails(d, selectedProduct, settings));
+    root.querySelector('#calculation-workbook').addEventListener('toggle', event => { this.workedOpen = event.target.open; });
     root.querySelectorAll('[data-period]').forEach(button => button.onclick = () => {
       this.period = Number(button.dataset.period); this.render(root);
     });
+    root.querySelector('#dashboard-product').onchange = event => { App.selProduct = Number(event.target.value); this.render(root); };
+    root.querySelector('#dashboard-confidence').onchange = event => { settings.confidenceLevel = Number(event.target.value); this.render(root); };
+    root.querySelector('#export-planning').onclick = () => {
+      const round = value => value === null ? '' : Number(value.toFixed(6));
+      const csv = [['product_id', 'product', 'unit', 'history_start', 'history_end', 'planning_date', 'method', 'parameter', 'forecast_per_day', 'confidence_level', 'prediction_lower_next_day', 'prediction_upper_next_day', 'rmse', 'backtest_samples', 'coverage_hits', 'coverage_tested', 'coverage_rate', 'annual_demand', 'unit_cost_eur', 'order_cost_eur', 'holding_rate', 'holding_cost_eur_per_unit_year', 'eoq', 'shelf_life_days', 'lead_time_days', 'recommended_quantity', 'service_level', 'safety_stock', 'reorder_point', 'stock']];
+      plans.forEach(({ p, pl }) => {
+        const ci = Calc.forecastConfidence(d.dailySales[p.id], fcs[p.id], confidenceLevel);
+        csv.push([p.id, p.name, p.unit, d.dates[0], d.dates.at(-1), d.today, settings.method, settings.method === 'es' ? settings.alpha : settings.n, round(pl.d), confidenceLevel, round(ci.lo), round(ci.hi), round(ci.rmse), ci.samples, ci.backtest.hits, ci.backtest.tested, round(ci.backtest.coverage), round(pl.D), p.cost, p.order_cost, settings.holdRate, round(pl.H), round(pl.eoq), p.shelf_life_days, p.lead_time_days, pl.qty, settings.serviceLevel, round(pl.safety), round(pl.rop), pl.stock]);
+      });
+      App.downloadCSV(`stockwise-confidence-eoq-${d.today}.csv`, csv);
+      App.toast('ส่งออก Confidence และ EOQ จากข้อมูลปัจจุบันแล้ว');
+    };
     root.querySelector('#export-sales').onclick = () => {
       const lines = [['date', 'revenue_eur', 'quantity', 'receipts'].join(',')];
       dates.forEach((date, i) => {

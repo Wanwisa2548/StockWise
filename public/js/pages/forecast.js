@@ -16,8 +16,12 @@ Pages.forecast = {
             </span>
           </label>
           <label id="f-param-wrap"></label>
+          <label>Confidence (ช่วงคาดการณ์)
+            <select id="f-confidence-level">${[0.90, 0.95, 0.99].map(v => `<option value="${v}" ${S.confidenceLevel === v ? 'selected' : ''}>${v * 100}%</option>`).join('')}</select>
+          </label>
         </div>
         <div id="f-kpi" class="grid cols-4"></div>
+        <div id="f-confidence" class="forecast-confidence-strip"></div>
       </div>
       <div class="card"><h3>ยอดขายจริงเทียบค่าพยากรณ์ และพยากรณ์ 14 วันข้างหน้า</h3><div id="f-chart"></div></div>
       <div class="card"><h3>ค่าพยากรณ์ 14 วันข้างหน้า</h3><div class="table-wrap" id="f-table"></div></div>
@@ -48,6 +52,7 @@ Pages.forecast = {
 
     const $ = id => root.querySelector(id);
     $('#f-prod').onchange = e => { App.selProduct = Number(e.target.value); update(); };
+    $('#f-confidence-level').onchange = e => { S.confidenceLevel = Number(e.target.value); update(); };
     $('#f-method').onclick = e => {
       const b = e.target.closest('button'); if (!b) return;
       S.method = b.dataset.m; root.querySelectorAll('#f-method button').forEach(x => x.classList.toggle('active', x === b));
@@ -70,6 +75,11 @@ Pages.forecast = {
       const series = d.dailySales[p.id];
       const fc = Calc.forecast(series, S.method, S.method === 'es' ? S.alpha : S.n);
       const m = fc.metrics;
+      const confidence = Calc.forecastConfidence(series, fc, S.confidenceLevel);
+      const levelText = App.fmt(confidence.level * 100) + '%';
+      const intervalText = confidence.available ? `${App.fmt(Math.floor(confidence.lo))}–${App.fmt(Math.ceil(confidence.hi))} ${App.esc(p.unit)}` : 'ข้อมูลยังไม่เพียงพอ';
+      const bt = confidence.backtest;
+      $('#f-confidence').innerHTML = `<span class="confidence-strip-icon">${App.icon('shield')}</span><div><b>Confidence ${levelText} · ช่วงคาดการณ์วันถัดไป</b><p>${intervalText} · ประมาณจาก RMSE ย้อนหลัง ${confidence.samples} จุด</p></div><div class="confidence-coverage"><b>${bt.coverage === null ? '—' : App.fmt(bt.coverage * 100, 1) + '%'}</b><span>ครอบคลุมจริงย้อนหลัง ${bt.hits}/${bt.tested} วัน</span></div>`;
 
       $('#f-kpi').innerHTML = [
         ['blue', 'พยากรณ์ยอดขาย/วัน (d)', App.fmt(fc.d, 1), p.unit],
@@ -85,7 +95,7 @@ Pages.forecast = {
       $('#f-chart').innerHTML = Charts.line({
         ...Charts.fit($('#f-chart'), 0.36, 260, 460),
         labels, splitAt: d.dates.length,
-        band: { from: d.dates.length, lo: fc.d - Calc.Z[S.serviceLevel] * m.rmse, hi: fc.d + Calc.Z[S.serviceLevel] * m.rmse },
+        band: confidence.available ? { from: d.dates.length, to: d.dates.length, lo: confidence.lo, hi: confidence.hi, name: `ช่วงคาดการณ์ ${levelText} เฉพาะวันถัดไป` } : null,
         series: [
           { name: 'ยอดขายจริง', color: 'var(--chart-actual)', values: series.concat(pad), width: 1.8 },
           { name: 'ค่าพยากรณ์ย้อนหลัง (backtest)', color: 'var(--accent)', values: fc.fitted.concat(pad), width: 2.5 },
@@ -95,11 +105,12 @@ Pages.forecast = {
       });
 
       $('#f-table').innerHTML = `<table><thead><tr><th>วันที่</th>${futureDates.map(x => `<th>${App.shortDate(x)}</th>`).join('')}</tr></thead>
-        <tbody><tr><td>พยากรณ์ (${p.unit})</td>${fc.future.map(v => `<td>${App.fmt(v, 1)}</td>`).join('')}</tr></tbody></table>`;
+        <tbody><tr><td>พยากรณ์ (${App.esc(p.unit)})</td>${fc.future.map(v => `<td>${App.fmt(v, 1)}</td>`).join('')}</tr><tr><td>ช่วงคาดการณ์ ${levelText}</td>${futureDates.map((_, i) => `<td>${i === 0 && confidence.available ? App.fmt(Math.floor(confidence.lo)) + '–' + App.fmt(Math.ceil(confidence.hi)) : '—'}</td>`).join('')}</tr></tbody></table><p class="muted interval-disclaimer">ช่วงคาดการณ์เป็นค่าประมาณสำหรับวันถัดไป ภายใต้สมมติฐานความคลาดเคลื่อนใกล้การแจกแจงปกติ</p>`;
 
       $('#f-formula').innerHTML = S.method === 'ma'
         ? `Moving Average: ค่าพยากรณ์ของวันถัดไป = ค่าเฉลี่ยยอดขาย ${S.n} วันล่าสุด (ตัวอย่าง: ${series.slice(-S.n).slice(-7).join(', ')}${S.n > 7 ? ' …' : ''} → d = ${App.fmt(fc.d, 1)})`
         : `Exponential Smoothing: ระดับใหม่ = α × ยอดจริง + (1 − α) × ระดับเดิม, α = ${S.alpha.toFixed(2)} ยิ่ง α สูงยิ่งตามยอดล่าสุดเร็ว`;
+      $('#f-formula').innerHTML += `<br>ช่วงคาดการณ์วันถัดไป = max(0, d ± z × RMSE), Confidence ${levelText}, z = ${App.fmt(confidence.z, 4)} · Coverage ทดสอบตามลำดับเวลา โดยใช้ความคลาดเคลื่อนอย่างน้อย 14 จุดก่อนวันทดสอบเท่านั้น`;
     }
 
     drawParam(); update();
