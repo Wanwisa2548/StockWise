@@ -465,19 +465,38 @@ Calc.kmeans = function (pts, k) {
 Calc.geoMean = v => Math.pow(10, v.reduce((s, x) => s + Math.log10(x), 0) / v.length);
 
 // ตั้งชื่อกลุ่มจาก geometric mean ของอายุสินค้า (วัน) และยอดขายต่อวัน
-Calc.clusterName = function (gmLife, gmSales) {
-  if (gmLife <= 5) return 'ของสดอายุสั้นมาก';
-  if (gmLife <= 30) return 'ของสดและแช่เย็น';
-  if (gmSales >= 15) return 'ของแห้งขายเร็ว';
-  return 'ขายช้า มูลค่าต่อชิ้นสูง';
+// ตั้งชื่อและนโยบายกลุ่มแบบเทียบกับสินค้าชุดเดียวกัน (ไม่ใช้เกณฑ์ตายตัวของมินิมาร์ท)
+//   ขายดี/ขายน้อย = geo mean ยอดขายของกลุ่ม ≥ / < มัธยฐานยอดขายของทุกสินค้า
+//   อายุสั้น/เก็บได้นานกว่า = geo mean อายุของกลุ่ม ≤ / > มัธยฐานอายุของทุกสินค้า
+//   กลุ่มที่อยู่ฝั่งเดียวกันเรียงตามยอดขายแล้วเติมคำระดับ ชื่อจึงไม่ซ้ำกัน
+Calc.median = function (values) {
+  const s = [...values].sort((a, b) => a - b), m = s.length >> 1;
+  return s.length % 2 ? s.at(m) : (s.at(m - 1) + s.at(m)) / 2;
 };
-
-// นโยบายการสต็อกที่แนะนำของแต่ละกลุ่ม
 Calc.clusterPolicy = {
-  'ของสดอายุสั้นมาก': 'สั่งบ่อย ครั้งละน้อย ตรวจอายุทุกวัน จัดโปรตั้งแต่ช่วงบ่าย',
-  'ของสดและแช่เย็น': 'สั่งตาม EOQ แต่จำกัดไม่เกินที่ขายทันในอายุสินค้า ใช้ FEFO และตรวจล็อตใกล้หมดอายุทุกวัน',
-  'ของแห้งขายเร็ว': 'สั่งครั้งละมากเพื่อลดค่าสั่งซื้อ ตั้ง ROP และ Safety Stock ให้แม่น ห้ามของขาด',
-  'ขายช้า มูลค่าต่อชิ้นสูง': 'เก็บสต็อกน้อย สั่งตามจริง ลดเงินจมในสินค้า'
+  'fast-short': 'สั่งบ่อย ครั้งละไม่เกินที่ขายทันในอายุสินค้า ตั้ง ROP และ Safety Stock ให้แม่น ห้ามของขาด ตรวจอายุทุกวัน',
+  'slow-short': 'สั่งครั้งละน้อยตามจริง ตรวจอายุทุกวัน จัดโปรตั้งแต่ช่วงบ่ายเมื่อเหลือมาก',
+  'fast-long': 'สั่งครั้งละมากขึ้นเพื่อลดค่าสั่งซื้อ ตั้ง ROP และ Safety Stock ให้แม่น ห้ามของขาด ใช้ FEFO',
+  'slow-long': 'เก็บสต็อกน้อย สั่งตามจริง ลดเงินจมในสินค้า ใช้ FEFO'
+};
+Calc.labelClusters = function (groups, sales, life) {
+  const mS = Calc.median(sales), mL = Calc.median(life);
+  const words = {
+    fast: [['ขายดี'], ['ขายดีมาก', 'ขายดี'], ['ขายดีมาก', 'ขายดี', 'ขายค่อนข้างดี']],
+    slow: [['ขายน้อย'], ['ขายน้อย', 'ขายน้อยมาก'], ['ขายค่อนข้างน้อย', 'ขายน้อย', 'ขายน้อยมาก']]
+  };
+  ['fast', 'slow'].forEach(side => {
+    const set = groups.filter(g => (g.gmSales >= mS) === (side === 'fast')).sort((a, b) => b.gmSales - a.gmSales);
+    const list = words[side].at(Math.min(set.length, 3) - 1) || [];
+    set.forEach((g, i) => {
+      const short = g.gmLife <= mL;
+      const word = set.length > 3 ? `${words[side].at(0).at(0)} อันดับ ${i + 1}` : list.at(i);
+      g.name = `${word} · ${short ? 'อายุสั้น' : 'เก็บได้นานกว่า'}`;
+      g.policyKey = `${side}-${short ? 'short' : 'long'}`;
+      g.policy = Calc.clusterPolicy[g.policyKey];
+    });
+  });
+  return groups;
 };
 
 // จัดกลุ่มสินค้าทั้งหมดด้วย k กลุ่ม
@@ -506,9 +525,9 @@ Calc.clusterProducts = function (data, fcs, k) {
     const idx = res.assign.map((a, i) => a === j ? i : -1).filter(i => i >= 0);
     if (!idx.length) continue;
     const gmSales = Calc.geoMean(idx.map(i => sales[i])), gmLife = Calc.geoMean(idx.map(i => life[i]));
-    const name = Calc.clusterName(gmLife, gmSales);
-    groups.push({ name, members: idx.map(i => P[i]), idx, gmSales, gmLife, policy: Calc.clusterPolicy[name] });
+    groups.push({ members: idx.map(i => P[i]), idx, gmSales, gmLife });
   }
+  Calc.labelClusters(groups, sales, life);
   groups.sort((a, b) => a.gmLife - b.gmLife);     // เรียงจากอายุสั้นไปยาว
   groups.forEach((g, i) => { g.id = i; g.idx.forEach(i2 => { res.assign[i2] = i; }); });
   return { pts, sales, life, assign: res.assign, sseByK, elbow, silhouette, groups };
