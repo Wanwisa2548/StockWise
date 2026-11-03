@@ -1,12 +1,14 @@
 {
   "name": "stockwise",
   "version": "1.0.0",
-  "description": "Stock planning system for minimarts (SDG 12): sales forecasting, EOQ &amp; reorder point, expiry alerts with markdown suggestions, and K-means product clustering. Node.js + Express + SQL Server.",
+  "description": "Bakery decision support system: model comparison, EOQ/ROP, FEFO, inventory policy evaluation and presentation slides. Node.js + Express + SQL Server.",
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
+    "demo": "node server.js --demo",
     "seed": "node seed.js",
-    "test": "node --test"
+    "test": "node --test tests/*.test.cjs",
+    "test:ui": "node scripts/ui-smoke.cjs"
   },
   "repository": {
     "type": "git",
@@ -24,5 +26,8 @@
     "dotenv": "^18.0.4",
     "express": "^5.2.1",
     "mssql": "^12.7.2"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.1"
   }
 }

@@ -1,4 +1,4 @@
-// หน้า 4: สินค้าใกล้หมดอายุ (FIFO + ส่วนลด + เวลาเริ่มโปร)
+// หน้า 4: สินค้าใกล้หมดอายุ (FEFO + ส่วนลด + เวลาเริ่มโปร)
 Pages.expiry = {
   // ผลวิเคราะห์ล็อตทั้งหมด (หน้าภาพรวมเรียกใช้ต่อ)
   analyze() { return Calc.analyzeLots(App.data, Calc.forecastAll(App.data, App.settings)); },
@@ -13,7 +13,7 @@ Pages.expiry = {
     const promoCell = r => {
       const pr = App.promoOfLot(r.lot.id);
       if (pr) return `<span class="badge blue">ตั้งโปรแล้ว</span>`;
-      if (r.expired || !r.atRisk || r.promoPrice === null) return '-';
+      if (r.expired || !r.atRisk || r.promoPrice === null || r.startHour === null) return '-';
       return `<button type="button" class="btn go" data-promo-lot="${r.lot.id}" data-pct="${r.discountPct}" data-price="${r.promoPrice}" data-hour="${r.startHour}">ตั้งโปรนี้</button>`;
     };
 
@@ -33,7 +33,7 @@ Pages.expiry = {
             <b>${App.esc(r.product.name)}</b> ล็อต #${r.lot.id} (เหลือ ${r.lot.days_left} วัน, ${App.fmt(r.lot.qty_remaining)} ${App.esc(r.product.unit)})<br>
             ขายทัน ${App.fmt(r.sellable)} · <b>ขายไม่ทัน ${App.fmt(r.unsold)}</b> →
             ${r.promoPrice !== null
-              ? `<b>${r.action}</b> เหลือ ${App.money(r.promoPrice)} (จาก ${App.money(r.product.price)}) เริ่มโปรตั้งแต่ <b>${hh(r.startHour)}</b>`
+              ? `<b>${r.action}</b> เหลือ ${App.money(r.promoPrice)} (จาก ${App.money(r.product.price)}) ${r.startHour === null ? 'ยังไม่มียอดรายชั่วโมงพอแนะนำเวลา' : `เริ่มโปรตั้งแต่ <b>${hh(r.startHour)}</b>`}`
               : 'เฝ้าระวัง (ยังไม่ถึงเกณฑ์ลดราคา)'}
           </div><span style="margin-left:auto">${promoCell(r)}</span></li>`).join('')}</ul>` : '<p class="muted">ทุกล็อตขายทันก่อนหมดอายุ</p>'}
       </div>
@@ -52,9 +52,10 @@ Pages.expiry = {
         <div class="table-wrap" id="e-table"></div>
       </div>
       <div class="card formula">
-        FIFO: ขายได้ทัน = min(จำนวนในล็อต, d × วันที่เหลือ − ที่ล็อตก่อนหน้าใช้ไป)<br>
+        FEFO (First Expired, First Out): เรียงล็อตที่หมดอายุก่อน · ขายได้ทัน = min(จำนวนในล็อต, max(0, d × วันที่เหลือ − ที่ล็อตก่อนหน้าใช้ไป))<br>
         ส่วนลด: หมดอายุแล้ว = นำออก · เหลือ ≤2 วัน ลด 50% · 3–4 วัน ลด 30% · 5–7 วัน ลด 20% · มากกว่า 7 วัน เฝ้าระวัง<br>
-        เวลาเริ่มโปร = ชั่วโมงสุดท้ายที่ยอดขายจากชั่วโมงนั้นจนปิดร้านยังเหลือ ≥ 40% ของยอดทั้งวัน (คำนวณจากรายการขายของสินค้านั้น)
+        เวลาเริ่มโปร = ชั่วโมงสุดท้ายที่ยอดขายจากชั่วโมงนั้นจนปิดร้านยังเหลือ ≥ 40% ของยอดทั้งวัน (คำนวณจากรายการขายของสินค้านั้น)<br>
+        ส่วนลดเป็นข้อเสนอแนะตามกฎ ไม่ได้เรียนรู้ผลของราคาต่อยอดขาย ยังไม่ยืนยันว่าจะเพิ่มยอดขายหรือลดของเสียเท่าไร · ควรตรวจราคาขายเทียบต้นทุนก่อนตั้งโปร
       </div>`;
 
     const draw = () => {
@@ -69,7 +70,7 @@ Pages.expiry = {
           <td>${r.unsold ? `<b>${App.fmt(r.unsold)}</b>` : '0'}</td>
           <td><span class="badge ${r.expired ? 'red' : r.atRisk ? (r.discountPct ? 'orange' : 'gray') : 'green'}">${r.action}</span></td>
           <td>${r.promoPrice !== null ? App.money(r.promoPrice) : '-'}</td>
-          <td>${r.promoPrice !== null ? hh(r.startHour) : '-'}</td>
+          <td>${r.promoPrice !== null && r.startHour !== null ? hh(r.startHour) : '-'}</td>
           <td>${r.riskValue ? App.money(r.riskValue) : '-'}</td><td>${promoCell(r)}</td></tr>`).join('')}
         </tbody></table>`;
     };

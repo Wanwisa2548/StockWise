@@ -55,7 +55,7 @@ Pages.cluster = {
       const C = this.COLORS;
       const short = n => n.length > 14 ? n.slice(0, 13) + '…' : n;
 
-      $('#c-elbow').innerHTML = `Elbow แนะนำ k = <b>${r.elbow}</b>`;
+      $('#c-elbow').innerHTML = `Elbow แนะนำ k = <b>${r.elbow ?? '—'}</b> · Silhouette ของ k ปัจจุบัน = <b>${r.silhouette === null ? '—' : App.fmt(r.silhouette, 3)}</b>`;
       $('#c-scatter').innerHTML = Charts.scatterLog({
         xLabel: 'ยอดขาย/วัน', yLabel: 'อายุสินค้า (วัน)', ...Charts.fit($('#c-scatter'), 0.75, 320, 520),
         points: d.products.map((p, i) => ({ x: r.sales[i], y: r.life[i], label: short(p.name), color: C[r.assign[i]] })),
@@ -65,7 +65,7 @@ Pages.cluster = {
       $('#c-elbow-chart').innerHTML = Charts.line({
         labels: r.sseByK.map((_, i) => 'k=' + (i + 1)), fmt: v => App.fmt(v, 1), ...Charts.fit($('#c-elbow-chart'), 0.75, 320, 520),
         series: [{ name: 'SSE', color: 'var(--ink)', values: r.sseByK, width: 2.4 }]
-      }) + `<p class="muted">SSE k=1…6: ${r.sseByK.map(v => App.fmt(v, 2)).join(', ')}</p>`;
+      }) + `<p class="muted">SSE k=1…${r.sseByK.length}: ${r.sseByK.map(v => App.fmt(v, 2)).join(', ')}</p><p class="dss-note">Silhouette อยู่ระหว่าง −1 ถึง 1 ยิ่งสูงยิ่งแยกกลุ่มได้ดี ค่า — คือจำนวนกลุ่มไม่เหมาะกับการวัด · ไม่ใช่เปอร์เซ็นต์ความแม่นยำ · นโยบายรายกลุ่มเป็นกฎที่ผู้พัฒนากำหนด ใช้เพื่อแนะนำและยังไม่เปลี่ยน EOQ/ROP อัตโนมัติ · ใช้ยอดขาย 0 เป็น 0.001 เฉพาะก่อนแปลง log เพื่อให้คำนวณได้</p>`;
 
       $('#c-cards').innerHTML = r.groups.map(g => `
         <div class="card" style="border-top:4px solid ${C[g.id]};margin:0">

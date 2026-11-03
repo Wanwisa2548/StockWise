@@ -113,24 +113,36 @@ router.delete('/promotions/:id', handle(async (req, res) => {
 // บันทึกผลพยากรณ์ของสินค้าทุกชิ้นตามวิธี/พารามิเตอร์ที่เลือก (บันทึกซ้ำวิธีเดิมในวันเดียวกัน = แทนที่ของเดิม)
 router.post('/forecasts', handle(async (req, res) => {
   const method = req.body.method;
-  if (method !== 'ma' && method !== 'es') throw new HttpError(400, 'วิธีพยากรณ์ต้องเป็น ma หรือ es');
+  const validModel = (m, p) => ['ma', 'es', 'naive', 'seasonal'].includes(m) && (m === 'es' ? p > 0 && p <= 1 : Number.isInteger(p) && p >= 1 && p <= 28) && (m !== 'naive' || p === 1) && (m !== 'seasonal' || p === 7);
   const param = num(req.body.param, 'พารามิเตอร์', { min: 0.01, max: 28 });
+  if (!validModel(method, param)) throw new HttpError(400, 'วิธีหรือพารามิเตอร์พยากรณ์ไม่ถูกต้อง');
+  const models = Array.isArray(req.body.models) ? req.body.models : [];
+  if (models.length > 200) throw new HttpError(400, 'จำนวนโมเดลมากเกินไป');
+  const choices = new Map();
+  models.forEach(model => {
+    const pid = num(model.product_id, 'สินค้า', { int: true, min: 1 });
+    const p = num(model.param, 'พารามิเตอร์', { min: .01, max: 28 });
+    if (choices.has(pid) || !validModel(model.method, p)) throw new HttpError(400, 'โมเดลรายสินค้าไม่ถูกต้องหรือซ้ำ');
+    choices.set(pid, { method: model.method, param: p });
+  });
   const items = Array.isArray(req.body.items) ? req.body.items : [];
   if (!items.length || items.length > 200) throw new HttpError(400, 'ไม่มีผลพยากรณ์ให้บันทึก');
   const rows = items.map(it => ({
     pid: num(it.product_id, 'สินค้า', { int: true, min: 1 }),
     d: num(it.daily_forecast, 'ค่าพยากรณ์', { min: 0, max: 1e7 }),
     mae: num(it.mae, 'MAE', { min: 0, max: 1e7 }),
-    mape: num(it.mape, 'MAPE', { min: 0, max: 9999 }),
+    mape: it.mape === null ? null : num(it.mape, 'MAPE', { min: 0, max: 9999 }),
     rmse: num(it.rmse, 'RMSE', { min: 0, max: 1e7 })
   }));
+  if (new Set(rows.map(r => r.pid)).size !== rows.length) throw new HttpError(400, 'สินค้าซ้ำในผลพยากรณ์');
   await inTransaction(async req0 => {
-    await req0().input('day', sql.Date, SIM_TODAY).input('m', sql.VarChar(10), method).input('p', sql.Decimal(5, 2), param)
-      .query('DELETE FROM forecasts WHERE run_date = @day AND method = @m AND param = @p');
     for (const r of rows) {
+      const chosen = choices.get(r.pid) || { method, param };
+      await req0().input('day', sql.Date, SIM_TODAY).input('pid', sql.Int, r.pid).input('m', sql.VarChar(10), chosen.method).input('p', sql.Decimal(5, 2), chosen.param)
+        .query('DELETE FROM forecasts WHERE product_id = @pid AND run_date = @day AND method = @m AND param = @p');
       await req0()
-        .input('pid', sql.Int, r.pid).input('day', sql.Date, SIM_TODAY).input('m', sql.VarChar(10), method)
-        .input('p', sql.Decimal(5, 2), param).input('d', sql.Decimal(10, 2), r.d)
+        .input('pid', sql.Int, r.pid).input('day', sql.Date, SIM_TODAY).input('m', sql.VarChar(10), chosen.method)
+        .input('p', sql.Decimal(5, 2), chosen.param).input('d', sql.Decimal(10, 2), r.d)
         .input('mae', sql.Decimal(10, 2), r.mae).input('mape', sql.Decimal(6, 2), r.mape).input('rmse', sql.Decimal(10, 2), r.rmse)
         .query(`INSERT INTO forecasts (product_id, run_date, method, param, daily_forecast, mae, mape, rmse)
                 VALUES (@pid, @day, @m, @p, @d, @mae, @mape, @rmse)`);

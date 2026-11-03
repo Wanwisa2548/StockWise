@@ -72,8 +72,11 @@ router.get('/data', async (req, res) => {
              CAST(daily_forecast AS float) AS daily_forecast, CAST(mae AS float) AS mae,
              CAST(mape AS float) AS mape, CAST(rmse AS float) AS rmse
       FROM forecasts ORDER BY id DESC`)).recordset;
-    const forecasts = fcRows.length
-      ? fcRows.filter(r => r.run_date === fcRows[0].run_date && r.method === fcRows[0].method && r.param === fcRows[0].param) : [];
+    const seenProducts = new Set();
+    const forecasts = fcRows.filter(r => {
+      if (seenProducts.has(r.product_id)) return false;
+      seenProducts.add(r.product_id); return true;
+    });
     const clRows = (await pool.request().query(`
       SELECT id, CONVERT(varchar(10), run_date, 23) AS run_date, k, product_id, cluster_label
       FROM cluster_results ORDER BY id DESC`)).recordset;

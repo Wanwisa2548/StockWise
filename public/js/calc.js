@@ -9,15 +9,15 @@ const Calc = {};
 // rows = [{ a: ยอดจริง, f: ค่าที่พยากรณ์ไว้ล่วงหน้า 1 วัน }]
 Calc.errorMetrics = function (rows) {
   const n = rows.length;
-  if (!n) return { mae: 0, mape: 0, rmse: 0 };
+  if (!n) return { mae: null, mape: null, rmse: null, samples: 0, mapeSamples: 0 };
   // MAE  = ค่าเฉลี่ยของ |จริง − พยากรณ์|
   const mae = rows.reduce((s, r) => s + Math.abs(r.a - r.f), 0) / n;
   // MAPE = ค่าเฉลี่ยของ |จริง − พยากรณ์| ÷ จริง (ข้ามวันที่ยอดจริงเป็น 0 เพราะหารไม่ได้)
   const nz = rows.filter(r => r.a > 0);
-  const mape = nz.length ? nz.reduce((s, r) => s + Math.abs(r.a - r.f) / r.a, 0) / nz.length * 100 : 0;
+  const mape = nz.length ? nz.reduce((s, r) => s + Math.abs(r.a - r.f) / r.a, 0) / nz.length * 100 : null;
   // RMSE = รากที่สองของค่าเฉลี่ย (จริง − พยากรณ์)²  → ใช้เป็น σ ในการคำนวณ Safety Stock
   const rmse = Math.sqrt(rows.reduce((s, r) => s + (r.a - r.f) ** 2, 0) / n);
-  return { mae, mape, rmse };
+  return { mae, mape, rmse, samples: n, mapeSamples: nz.length };
 };
 
 // พยากรณ์ด้วย Moving Average / Exponential Smoothing
@@ -28,9 +28,17 @@ Calc.errorMetrics = function (rows) {
 //   fitted = ค่าพยากรณ์ย้อนหลังแต่ละวัน (null = ยังไม่มีข้อมูลพอ)
 //   future = พยากรณ์ 14 วันข้างหน้า
 Calc.forecast = function (series, method, param) {
+  if (!Array.isArray(series) || !series.length || series.some(v => !Number.isFinite(v) || v < 0)) throw new RangeError('ยอดขายต้องเป็นจำนวนไม่ติดลบและมีอย่างน้อย 1 วัน');
+  if (!['ma', 'es', 'naive', 'seasonal'].includes(method)) throw new RangeError('Unsupported forecast method');
+  if (method === 'ma' && (!Number.isInteger(param) || param < 1)) throw new RangeError('Invalid moving average window');
+  if (method === 'es' && !(param > 0 && param <= 1)) throw new RangeError('Invalid smoothing alpha');
   const fitted = new Array(series.length).fill(null);
   let d;
-  if (method === 'es') {
+  if (method === 'naive' || method === 'seasonal') {
+    const lag = method === 'seasonal' ? 7 : 1;
+    for (let t = lag; t < series.length; t++) fitted[t] = series[t - lag];
+    d = series[Math.max(0, series.length - lag)];
+  } else if (method === 'es') {
     const alpha = param;
     let level = series[0];                       // ค่าเริ่มต้น = ยอดวันแรก
     for (let t = 1; t < series.length; t++) {
@@ -45,11 +53,41 @@ Calc.forecast = function (series, method, param) {
       for (let k = t - n; k < t; k++) s += series[k];
       fitted[t] = s / n;
     }
-    d = series.slice(-n).reduce((a, b) => a + b, 0) / n;
+    const recent = series.slice(-n);
+    d = recent.reduce((a, b) => a + b, 0) / recent.length;
   }
   const rows = [];
   series.forEach((a, t) => { if (fitted[t] !== null) rows.push({ a, f: fitted[t] }); });
-  return { d, fitted, metrics: Calc.errorMetrics(rows), residuals: rows.map(r => r.a - r.f), future: new Array(14).fill(d) };
+  const future = Array.from({ length: 14 }, (_, i) => method === 'seasonal' && series.length >= 7 ? series[series.length - 7 + i % 7] : d);
+  return { d, method, param, fitted, metrics: Calc.errorMetrics(rows), residuals: rows.map(r => r.a - r.f), future };
+};
+
+Calc.modelLabel = (method, param) => ({ ma: `MA(${param})`, es: `ES(α=${param})`, naive: 'Naïve (ยอดเมื่อวาน)', seasonal: 'Seasonal naïve (รอบ 7 วัน)' })[method] || method;
+
+// All candidates share the same validation/test dates. The holdout never selects the winner.
+Calc.compareModels = function (series) {
+  const block = Math.min(14, Math.floor((series.length - 28) / 2));
+  if (block < 7) return { available: false, reason: 'ต้องมีข้อมูลอย่างน้อย 42 วัน (ฝึก 28 วัน + validation 7 + test 7)' };
+  const testStart = series.length - block, validationStart = testStart - block;
+  const candidates = [
+    { method: 'naive', param: 1 }, { method: 'seasonal', param: 7 },
+    ...[7, 14, 28].map(param => ({ method: 'ma', param })),
+    ...[.15, .30, .50, .80].map(param => ({ method: 'es', param }))
+  ];
+  const rows = candidates.map(candidate => {
+    const fc = Calc.forecast(series, candidate.method, candidate.param);
+    const score = (start, end) => Calc.errorMetrics(series.slice(start, end).map((a, i) => ({ a, f: fc.fitted[start + i] })));
+    return { ...candidate, id: `${candidate.method}-${candidate.param}`, label: Calc.modelLabel(candidate.method, candidate.param),
+      validation: score(validationStart, testStart), test: score(testStart, series.length) };
+  });
+  const selected = rows.slice().sort((a, b) => a.validation.rmse - b.validation.rmse || a.validation.mae - b.validation.mae)[0];
+  return { available: true, validationStart, testStart, block, rows, selected };
+};
+
+// Overrides are explicit user choices per product; all downstream screens use the same model.
+Calc.forecastFor = function (series, settings, productId) {
+  const choice = settings.modelChoices?.[productId];
+  return Calc.forecast(series, choice?.method || settings.method, choice?.param ?? (settings.method === 'es' ? settings.alpha : settings.n));
 };
 
 // Two-sided normal quantiles for prediction intervals, separate from one-sided ROP service levels.
@@ -90,16 +128,17 @@ Calc.forecastConfidence = function (series, fc, level = 0.95) {
 // Forecast the combined daily demand directly, preserving correlations between products.
 Calc.totalForecast = function (data, settings) {
   const series = data.dates.map((_, index) => data.products.reduce((sum, product) => sum + data.dailySales[product.id][index], 0));
-  const param = settings.method === 'es' ? settings.alpha : settings.n;
-  const forecast = Calc.forecast(series, settings.method, param);
+  const forecasts = Object.values(Calc.forecastAll(data, settings));
+  const fitted = series.map((_, index) => forecasts.every(fc => fc.fitted[index] !== null) ? forecasts.reduce((sum, fc) => sum + fc.fitted[index], 0) : null);
+  const rows = series.flatMap((a, i) => fitted[i] === null ? [] : [{ a, f: fitted[i] }]);
+  const forecast = { d: forecasts.reduce((sum, fc) => sum + fc.d, 0), fitted, metrics: Calc.errorMetrics(rows), future: Array.from({ length: 14 }, (_, i) => forecasts.reduce((sum, fc) => sum + fc.future[i], 0)) };
   return { series, forecast, confidence: Calc.forecastConfidence(series, forecast, settings.confidenceLevel || 0.95) };
 };
 
 // พยากรณ์ของสินค้าทุกชิ้นด้วยค่าที่ผู้ใช้ตั้ง (ใช้ในหลายหน้า)
 Calc.forecastAll = function (data, settings) {
-  const param = settings.method === 'es' ? settings.alpha : settings.n;
   const out = {};
-  data.products.forEach(p => { out[p.id] = Calc.forecast(data.dailySales[p.id], settings.method, param); });
+  data.products.forEach(p => { out[p.id] = Calc.forecastFor(data.dailySales[p.id], settings, p.id); });
   return out;
 };
 
@@ -114,7 +153,10 @@ Calc.Z = { 0.90: 1.28, 0.95: 1.65, 0.99: 2.33 };
 Calc.stockByProduct = function (data) {
   const out = {};
   data.products.forEach(p => { out[p.id] = 0; });
-  data.lots.forEach(l => { out[l.product_id] = (out[l.product_id] || 0) + l.qty_remaining; });
+  data.lots.forEach(l => {
+    const usable = l.expiry_date ? (!data.today || l.expiry_date > data.today) : !(l.days_left <= 0);
+    if (usable && (!l.received_date || !data.today || l.received_date <= data.today)) out[l.product_id] = (out[l.product_id] || 0) + l.qty_remaining;
+  });
   return out;
 };
 
@@ -123,7 +165,7 @@ Calc.stockByProduct = function (data) {
 //   opts = { serviceLevel, holdRate, today }
 Calc.plan = function (p, fc, stock, opts) {
   const d = fc.d;                                   // ยอดขายต่อวันที่พยากรณ์
-  const sigma = fc.metrics.rmse;                    // σ = RMSE
+  const sigma = fc.metrics.rmse ?? 0;               // no history: plan is provisional
   const z = Calc.Z[opts.serviceLevel];
   const D = d * 365;                                // ความต้องการต่อปี
   const H = p.cost * opts.holdRate;                 // ต้นทุนเก็บรักษาต่อชิ้นต่อปี
@@ -137,8 +179,8 @@ Calc.plan = function (p, fc, stock, opts) {
   const safety = z * sigma * Math.sqrt(p.lead_time_days);   // Safety Stock = z × σ × √L
   const rop = d * p.lead_time_days + safety;                // ROP = d × L + Safety Stock
 
-  // จำนวนวันก่อนต้องสั่ง = floor((สต็อก − ROP) ÷ d)
-  const days = d > 0 ? Math.floor((stock - rop) / d) : 999;
+  // วันที่สต็อกถึงหรือต่ำกว่า ROP เมื่อทบทวนก่อนขายทุกวัน
+  const days = d > 0 ? Math.max(0, Math.ceil((stock - rop) / d)) : 999;
   const status = days <= 0 ? 'red' : days <= 3 ? 'orange' : 'green';
   const orderDate = opts.today ? Calc.addDays(opts.today, Math.max(days, 0)) : null;
   return { d, sigma, z, D, H, eoq, cap, limited, qty, safety, rop, stock, days, status, orderDate };
@@ -146,6 +188,8 @@ Calc.plan = function (p, fc, stock, opts) {
 
 // Auditable calculation steps use exactly the same forecast, interval and EOQ as the dashboard.
 Calc.calculationDetails = function (data, product, settings) {
+  const choice = settings.modelChoices?.[product.id];
+  if (choice) settings = { ...settings, method: choice.method, n: choice.param, alpha: choice.param };
   const series = data.dailySales[product.id];
   const parameter = settings.method === 'es' ? settings.alpha : settings.n;
   const forecast = Calc.forecast(series, settings.method, parameter);
@@ -165,7 +209,7 @@ Calc.calculationDetails = function (data, product, settings) {
     nextLevel: parameter * row.actual + (1 - parameter) * row.predicted
   })) : [];
   return {
-    product, settings: { ...settings }, today: data.today, dates: [...data.dates], forecast, confidence, plan,
+    product, settings: { ...settings }, source: data.source || null, today: data.today, dates: [...data.dates], forecast, confidence, plan,
     rows, errors, squaredErrorSum, meanSquaredError: errors.length ? squaredErrorSum / errors.length : null,
     recentRows, recentSum: recentRows.reduce((sum, row) => sum + row.actual, 0), smoothing,
     numerator: 2 * plan.D * product.order_cost,
@@ -201,7 +245,7 @@ Calc.simulateStock = function (plan, leadTime, days = 30) {
 };
 
 /* ============================================================
- * 3) สินค้าใกล้หมดอายุ (FIFO + ส่วนลด + เวลาเริ่มโปร)
+ * 3) สินค้าใกล้หมดอายุ (FEFO + ส่วนลด + เวลาเริ่มโปร)
  * ============================================================ */
 
 // กฎส่วนลดตามจำนวนวันที่เหลือ → { pct, label }
@@ -239,7 +283,7 @@ Calc.promoStartHour = function (hours) {
 // ชั่วโมงที่ขายดีที่สุด
 Calc.peakHour = function (hours) { return hours.indexOf(Math.max(...hours)); };
 
-// ตรวจทุกล็อตแบบ FIFO ว่าขายทันก่อนหมดอายุหรือไม่
+// ตรวจทุกล็อตแบบ FEFO (First Expired, First Out) ว่าขายทันก่อนหมดอายุหรือไม่
 //   fcs = ผลพยากรณ์รายสินค้า (ใช้ d), คืนรายการล็อตพร้อมผลวิเคราะห์ (เรียงตามวันหมดอายุ)
 //   ล็อตเรียงตามวันหมดอายุ: ล็อตก่อนหน้าจะใช้ยอดขายไปก่อน ล็อตถัดไปได้ส่วนที่เหลือ
 //   ขายได้ทัน = min(จำนวนในล็อต, d × วันที่เหลือ − ที่ล็อตก่อนหน้าใช้ไป)
@@ -249,7 +293,7 @@ Calc.analyzeLots = function (data, fcs) {
     const d = fcs[p.id].d;
     const hours = Calc.hourlyTotals(data.transactions, p.id);
     const startHour = Calc.promoStartHour(hours);
-    const lots = data.lots.filter(l => l.product_id === p.id && l.qty_remaining > 0)
+    const lots = data.lots.filter(l => l.product_id === p.id && l.qty_remaining > 0 && (!l.received_date || !data.today || l.received_date <= data.today))
       .sort((a, b) => a.expiry_date.localeCompare(b.expiry_date) || a.id - b.id);
     let used = 0;                                   // ยอดขายที่ล็อตก่อนหน้าใช้ไปแล้ว
     lots.forEach(l => {
@@ -372,7 +416,7 @@ Calc.clusterName = function (gmLife, gmSales) {
 // นโยบายการสต็อกที่แนะนำของแต่ละกลุ่ม
 Calc.clusterPolicy = {
   'ของสดอายุสั้นมาก': 'สั่งบ่อย ครั้งละน้อย ตรวจอายุทุกวัน จัดโปรตั้งแต่ช่วงบ่าย',
-  'ของสดและแช่เย็น': 'สั่งตาม EOQ แต่จำกัดไม่เกินที่ขายทันในอายุสินค้า ใช้ FIFO และตรวจล็อตใกล้หมดอายุทุกวัน',
+  'ของสดและแช่เย็น': 'สั่งตาม EOQ แต่จำกัดไม่เกินที่ขายทันในอายุสินค้า ใช้ FEFO และตรวจล็อตใกล้หมดอายุทุกวัน',
   'ของแห้งขายเร็ว': 'สั่งครั้งละมากเพื่อลดค่าสั่งซื้อ ตั้ง ROP และ Safety Stock ให้แม่น ห้ามของขาด',
   'ขายช้า มูลค่าต่อชิ้นสูง': 'เก็บสต็อกน้อย สั่งตามจริง ลดเงินจมในสินค้า'
 };
@@ -383,19 +427,21 @@ Calc.clusterPolicy = {
 Calc.clusterProducts = function (data, fcs, k) {
   const P = data.products;
   const sales = P.map(p => fcs[p.id].d), life = P.map(p => p.shelf_life_days);
-  const x = Calc.zscore(sales.map(Math.log10)), y = Calc.zscore(life.map(Math.log10));
+  if (!P.length) return { pts: [], sales, life, assign: [], sseByK: [], elbow: null, silhouette: null, groups: [] };
+  const x = Calc.zscore(sales.map(v => Math.log10(Math.max(v, .001)))), y = Calc.zscore(life.map(v => Math.log10(Math.max(v, .001))));
   const pts = x.map((v, i) => [v, y[i]]);
 
   const sseByK = [];
-  for (let kk = 1; kk <= 6; kk++) sseByK.push(Calc.kmeans(pts, kk).sse);
+  for (let kk = 1; kk <= Math.min(6, P.length); kk++) sseByK.push(Calc.kmeans(pts, kk).sse);
   // elbow = k ที่ผลต่างอันดับสอง (SSE[k−1] − 2·SSE[k] + SSE[k+1]) มากที่สุด
-  let elbow = 2, bestDiff = -Infinity;
-  for (let kk = 2; kk <= 5; kk++) {
+  let elbow = Math.min(2, P.length), bestDiff = -Infinity;
+  for (let kk = 2; kk < sseByK.length; kk++) {
     const diff = sseByK[kk - 2] - 2 * sseByK[kk - 1] + sseByK[kk];
     if (diff > bestDiff) { bestDiff = diff; elbow = kk; }
   }
 
-  const res = Calc.kmeans(pts, k);
+  const res = Calc.kmeans(pts, Math.max(1, Math.min(k, P.length)));
+  const silhouette = Calc.silhouette(pts, res.assign);
   const groups = [];
   for (let j = 0; j < k; j++) {
     const idx = res.assign.map((a, i) => a === j ? i : -1).filter(i => i >= 0);
@@ -406,7 +452,90 @@ Calc.clusterProducts = function (data, fcs, k) {
   }
   groups.sort((a, b) => a.gmLife - b.gmLife);     // เรียงจากอายุสั้นไปยาว
   groups.forEach((g, i) => { g.id = i; g.idx.forEach(i2 => { res.assign[i2] = i; }); });
-  return { pts, sales, life, assign: res.assign, sseByK, elbow, groups };
+  return { pts, sales, life, assign: res.assign, sseByK, elbow, silhouette, groups };
+};
+
+// Mean Euclidean silhouette; singletons score 0, a single group is undefined.
+Calc.silhouette = function (pts, assign) {
+  const labels = [...new Set(assign)];
+  if (labels.length < 2 || labels.length >= pts.length) return null;
+  const distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  return pts.reduce((sum, p, i) => {
+    const own = pts.filter((_, j) => i !== j && assign[j] === assign[i]);
+    if (!own.length) return sum;
+    const a = own.reduce((s, q) => s + distance(p, q), 0) / own.length;
+    const b = Math.min(...labels.filter(label => label !== assign[i]).map(label => {
+      const group = pts.filter((_, j) => assign[j] === label);
+      return group.reduce((s, q) => s + distance(p, q), 0) / group.length;
+    }));
+    return sum + (Math.max(a, b) ? (b - a) / Math.max(a, b) : 0);
+  }, 0) / pts.length;
+};
+
+// Retrospective policy experiment. Demand is observed sales, not censored/unmet demand.
+// Models are selected before the holdout. At day t, only observations < t are visible.
+Calc.evaluatePolicies = function (product, series, settings, options = {}) {
+  const comparison = Calc.compareModels(series);
+  if (!comparison.available) return comparison;
+  const { testStart, selected } = comparison;
+  const training = series.slice(0, testStart);
+  const average = training.slice(-7).reduce((s, v) => s + v, 0) / Math.min(7, training.length);
+  const interval = options.interval ?? 3;
+  const fixedQty = options.fixedQty ?? Math.ceil(average * interval);
+  const initialStock = options.initialStock ?? Math.ceil(average * Math.min(product.shelf_life_days, product.lead_time_days + 1));
+  const shortagePenalty = options.shortagePenalty ?? Math.max(0, product.price - product.cost);
+  if (!Number.isInteger(interval) || interval < 1 || interval > 30 || !Number.isInteger(fixedQty) || fixedQty < 0 || !Number.isInteger(initialStock) || initialStock < 0 || !Number.isFinite(shortagePenalty) || shortagePenalty < 0) throw new RangeError('Invalid policy assumptions');
+  const run = policy => {
+    let lots = initialStock ? [{ qty: initialStock, expiry: testStart + product.shelf_life_days }] : [];
+    let pending = [];
+    const result = { policy, initialStock, demand: 0, sold: 0, shortage: 0, waste: 0, received: 0, orders: 0, orderedUnits: 0, orderCost: 0, holdingCost: 0, rows: [] };
+    for (let t = testStart; t < series.length; t++) {
+      const waste = lots.filter(l => l.expiry <= t).reduce((s, l) => s + l.qty, 0);
+      lots = lots.filter(l => l.expiry > t);
+      const arrivals = pending.filter(o => o.arrive === t);
+      arrivals.forEach(o => lots.push({ qty: o.qty, expiry: t + product.shelf_life_days }));
+      pending = pending.filter(o => o.arrive > t);
+      const received = arrivals.reduce((s, o) => s + o.qty, 0);
+      const stock = lots.reduce((s, l) => s + l.qty, 0);
+      const fc = Calc.forecast(series.slice(0, t), selected.method, selected.param);
+      const plan = Calc.plan(product, fc, stock, settings);
+      const position = stock + pending.reduce((s, o) => s + o.qty, 0);
+      const qty = policy === 'fixed'
+        ? ((t - testStart) % interval === 0 ? fixedQty : 0)
+        : (!pending.length && position <= plan.rop ? plan.qty : 0);
+      if (qty > 0) {
+        pending.push({ arrive: t + product.lead_time_days, qty });
+        result.orders++; result.orderedUnits += qty; result.orderCost += product.order_cost;
+      }
+      let remaining = series[t];
+      lots.sort((a, b) => a.expiry - b.expiry);
+      lots.forEach(l => { const sold = Math.min(remaining, l.qty); remaining -= sold; l.qty -= sold; });
+      const closing = lots.reduce((s, l) => s + l.qty, 0);
+      const sold = series[t] - remaining;
+      result.demand += series[t]; result.sold += sold; result.shortage += remaining;
+      result.waste += waste; result.received += received;
+      result.holdingCost += closing * product.cost * settings.holdRate / 365;
+      result.rows.push({ index: t, forecast: fc.d, rop: plan.rop, opening: stock, received, ordered: qty, actual: series[t], sold, shortage: remaining, waste, closing });
+    }
+    result.closing = lots.reduce((s, l) => s + l.qty, 0);
+    result.pipeline = pending.reduce((s, o) => s + o.qty, 0);
+    result.averageStock = result.rows.reduce((s, r) => s + r.closing, 0) / result.rows.length;
+    result.wasteCost = result.waste * product.cost;
+    result.shortageCost = result.shortage * shortagePenalty;
+    result.totalCost = result.orderCost + result.holdingCost + result.wasteCost + result.shortageCost;
+    result.fillRate = result.demand > 0 ? result.sold / result.demand : null;
+    return result;
+  };
+  return { available: true, testStart, selected, assumptions: { interval, fixedQty, initialStock, shortagePenalty }, fixed: run('fixed'), dss: run('dss') };
+};
+
+Calc.orderExplanation = function (p, fc, plan, pending) {
+  const n = v => Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  const timing = plan.d <= 0 ? 'ไม่มีความต้องการที่พยากรณ์ จึงไม่แนะนำสั่ง'
+    : pending ? `มีใบสั่งซื้อรอรับ ${pending.qty} หน่วย ถึง ${pending.expected_date} จึงไม่สั่งซ้ำ`
+    : plan.stock <= plan.rop ? `ควรสั่งวันนี้ เพราะสต็อกใช้ได้ ${n(plan.stock)} ≤ ROP ${n(plan.rop)}`
+    : `ยังไม่ถึงจุดสั่งซื้อ: สต็อกใช้ได้ ${n(plan.stock)} > ROP ${n(plan.rop)} คาดถึงเกณฑ์ใน ${plan.days} วัน`;
+  return `${timing} · ${Calc.modelLabel(fc.method, fc.param)} พยากรณ์ ${n(fc.d)} ${p.unit}/วัน · RMSE ทั้งช่วง ${fc.metrics.rmse === null ? 'ยังไม่มีข้อมูล' : n(fc.metrics.rmse)} · EOQ ${n(plan.eoq)}${plan.limited ? ` จำกัดที่ยอดขาย × อายุ ${p.shelf_life_days} วัน` : ''} → ${plan.qty} ${p.unit}/ครั้ง · ไม่รวมล็อตหมดอายุหรือยังไม่รับเข้า · จำนวนสั่งเป็นแนวทาง ไม่รับประกันว่าจะขายหมด`;
 };
 
 if (typeof module !== 'undefined') module.exports = Calc;
