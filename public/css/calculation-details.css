@@ -1,49 +1,49 @@
 .calculation-workbook { margin-top: 18px; background: #fff; border: 1px solid #dce5d0; border-radius: 9px; }
-.calculation-workbook > summary { cursor: pointer; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 20px; padding: 17px 20px; color: #5a7649; font-size: 15px; list-style: none; }
+.calculation-workbook > summary { cursor: pointer; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 20px; padding: 17px 20px; color: #5a7649; font-size: 17px; list-style: none; }
 .calculation-workbook > summary::-webkit-details-marker { display: none; }
 .calculation-workbook > summary > span { display: flex; gap: 8px; align-items: center; }
 .calculation-workbook > summary > span > svg { height: 17px; width: 17px; }
-.calculation-workbook > summary small { font-size: 12.5px; color: #97a08c; }
-.calculation-workbook > summary::after { content: '+'; margin-left: auto; font-size: 18px; line-height: 1.4; }
+.calculation-workbook > summary small { font-size: 14.5px; color: #97a08c; }
+.calculation-workbook > summary::after { content: '+'; margin-left: auto; font-size: 20px; line-height: 1.4; }
 .calculation-workbook[open] > summary { border-bottom: 1px solid var(--line); }
 .calculation-workbook[open] > summary::after { content: '−'; }
 .worked-toolbar { display: flex; gap: 15px; align-items: center; justify-content: space-between; padding: 16px 20px; background: #fafbf7; }
-.worked-toolbar > span { font-size: 12.5px; color: #909d82; }
-.worked-toolbar .btn { font-size: 13px; }
+.worked-toolbar > span { font-size: 14.5px; color: #909d82; }
+.worked-toolbar .btn { font-size: 15px; }
 .worked-calculations { padding: 20px; color: #657956; }
-.worked-heading h3 { font-size: 18px; font-weight: 500; margin: 5px 0; }
-.worked-heading p { font-size: 13px; color: #8a987b; line-height: 1.8; }
+.worked-heading h3 { font-size: 20px; font-weight: 500; margin: 5px 0; }
+.worked-heading p { font-size: 15px; color: #8a987b; line-height: 1.8; }
 .worked-calculations > .worked-note { margin-top: 10px; }
 .worked-step { padding: 21px; border: 1px solid #e5eadb; border-radius: 9px; margin-top: 19px; background: #fff; min-width: 0; scroll-margin-top: 24px; }
-.worked-step h4 { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; font-size: 17px; font-weight: 500; color: #547046; }
-.worked-step h4 > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; background: #edf2e3; color: #8b9c76; font-size: 12.5px; flex-shrink: 0; }
-.worked-step > p { font-size: 14px; line-height: 1.9; }
+.worked-step h4 { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; font-size: 19px; font-weight: 500; color: #547046; }
+.worked-step h4 > span { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 6px; background: #edf2e3; color: #8b9c76; font-size: 14.5px; flex-shrink: 0; }
+.worked-step > p { font-size: 16px; line-height: 1.9; }
 .worked-equation { display: flex; flex-direction: column; gap: 5px; border-bottom: 1px solid #edf0e6; padding: 13px 0; }
-.worked-equation > span { color: #89977a; font-size: 13px; }
-.worked-equation code { font: 14px/1.9 ui-monospace,'IBM Plex Sans Thai',monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: #758566; }
-.worked-equation strong { font-size: 16px; font-weight: 500; color: #4d6d3d; overflow-wrap: anywhere; }
-.worked-note { color: #909e80; font-size: 12.5px; line-height: 1.9; }
-.worked-table { margin: 14px 0; font-size: 13px; }
+.worked-equation > span { color: #89977a; font-size: 15px; }
+.worked-equation code { font: 16px/1.9 ui-monospace,'IBM Plex Sans Thai',monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: #758566; }
+.worked-equation strong { font-size: 18px; font-weight: 500; color: #4d6d3d; overflow-wrap: anywhere; }
+.worked-note { color: #909e80; font-size: 14.5px; line-height: 1.9; }
+.worked-table { margin: 14px 0; font-size: 15px; }
 .worked-table > summary { cursor: pointer; color: #879b70; }
 .worked-table .table-wrap { margin-top: 10px; }
-.worked-table table { font-size: 13px; }
-.worked-table th { font-size: 12.5px; }
-.worked-total { margin-top: 10px; font-size: 13px; color: #71875a; }
-.worked-answer { padding: 14px 16px; border-radius: 7px; margin-top: 17px; background: #f1f5e9; color: #758966; font-size: 13px; line-height: 1.9; }
+.worked-table table { font-size: 15px; }
+.worked-table th { font-size: 14.5px; }
+.worked-total { margin-top: 10px; font-size: 15px; color: #71875a; }
+.worked-answer { padding: 14px 16px; border-radius: 7px; margin-top: 17px; background: #f1f5e9; color: #758966; font-size: 15px; line-height: 1.9; }
 .worked-answer b { color: #587445; font-weight: 500; }
-.worked-result { padding: 17px; border-left: 3px solid #a3b989; background: #f1f6e9; font-size: 14px; margin-top: 16px; }
-.worked-result b { font-weight: 500; font-size: 17px; color: #567441; }
-.worked-result small { display: block; color: #96a584; font-size: 12.5px; margin-top: 6px; }
+.worked-result { padding: 17px; border-left: 3px solid #a3b989; background: #f1f6e9; font-size: 16px; margin-top: 16px; }
+.worked-result b { font-weight: 500; font-size: 19px; color: #567441; }
+.worked-result small { display: block; color: #96a584; font-size: 14.5px; margin-top: 6px; }
 .worked-note a { color: #6f8958; }
 @media(max-width:760px) {
-  .calculation-workbook > summary { padding: 15px; font-size: 14px; }
+  .calculation-workbook > summary { padding: 15px; font-size: 16px; }
   .calculation-workbook > summary small { display: none; }
   .worked-toolbar { flex-direction: column; align-items: flex-start; padding: 13px; }
   .worked-calculations { padding: 13px; }
   .worked-step { padding: 14px; margin-top: 14px; }
-  .worked-heading h3 { font-size: 18px; }
-  .worked-step h4 { font-size: 15px; gap: 8px; align-items: flex-start; }
-  .worked-equation code { font-size: 13px; }
-  .worked-equation strong { font-size: 14px; }
-  .worked-answer { padding: 12px; font-size: 12.5px; }
+  .worked-heading h3 { font-size: 20px; }
+  .worked-step h4 { font-size: 17px; gap: 8px; align-items: flex-start; }
+  .worked-equation code { font-size: 15px; }
+  .worked-equation strong { font-size: 16px; }
+  .worked-answer { padding: 12px; font-size: 14.5px; }
 }

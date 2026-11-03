@@ -110,7 +110,7 @@ Charts.heatmap = function ({ rowLabels, colLabels, matrix, width = 760, fmt = v 
       const a = v / max;                                  // ความเข้ม 0–1
       const pct = Math.round(8 + a * 92);
       g += `<rect x="${m.l + j * cw + 1}" y="${m.t + i * ch + 1}" width="${cw - 2}" height="${ch - 2}" rx="4" style="fill:color-mix(in srgb, var(--accent) ${pct}%, var(--surface))"><title>${Charts.esc(rowLabels[i] + ' ' + colLabels[j])}: ${fmt(v)}</title></rect>` +
-           `<text x="${m.l + j * cw + cw / 2}" y="${m.t + i * ch + ch / 2 + 4}" text-anchor="middle" style="fill:${a > 0.55 ? 'var(--accent-ink)' : 'var(--ink)'};font-size:12px">${Math.round(v)}</text>`;
+           `<text x="${m.l + j * cw + cw / 2}" y="${m.t + i * ch + ch / 2 + 4}" text-anchor="middle" style="fill:${a > 0.55 ? 'var(--accent-ink)' : 'var(--ink)'};font-size:14px">${Math.round(v)}</text>`;
     });
   });
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
