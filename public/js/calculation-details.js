@@ -30,6 +30,7 @@ const CalculationDetails = {
           ['S', 'ค่าสั่งซื้อหนึ่งครั้ง', '€' + n(p.order_cost) + '/ครั้ง', 'ข้อมูลสินค้า: order_cost'],
           ['i', 'อัตราเก็บรักษาต่อปี', n(s.holdRate) + ' = ' + n(s.holdRate * 100) + '%', 'สมมติฐานที่เลือกในแผนจัดซื้อ'],
           ['อายุสินค้า', 'ใช้จำกัดจำนวนที่คาดว่าขายทัน', n(p.shelf_life_days) + ' วัน', 'ข้อมูลสินค้า: shelf_life_days'],
+          ['L', 'ระยะเวลารอสินค้า', n(p.lead_time_days) + ' วัน', 'ข้อมูลสินค้า: lead_time_days'],
           ['365', 'จำนวนวันที่ใช้แปลงเป็นความต้องการรายปี', '365 วัน/ปี', 'สมมติฐานของแบบจำลอง'],
           ['Confidence', 'ระดับเป้าหมายของช่วงคาดการณ์', level + '%', 'ค่าที่ผู้ใช้เลือก'],
           ['z', 'ตัวคูณปกติมาตรฐานแบบสองด้าน', n(ci.z), 'ตาราง z: 90%=1.644854; 95%=1.959964; 99%=2.575829']
@@ -43,9 +44,13 @@ const CalculationDetails = {
         ${formula('D = d × 365', `D = ${n(fc.d)} × 365`, `≈ ${n(pl.D)} ${p.unit}/ปี`)}
         ${formula('H = C × i', `H = ${n(p.cost)} × ${n(s.holdRate)}`, `= €${n(pl.H)}/${p.unit}/ปี`)}
         ${formula('EOQ = √(2 × D × S ÷ H)', `EOQ = √(2 × ${n(pl.D)} × ${n(p.order_cost)} ÷ ${n(pl.H)})`, `≈ √(${n(t.numerator)} ÷ ${n(pl.H)}) = √${n(t.radicand)} ≈ ${n(pl.eoq)} ${p.unit}/ครั้ง`)}
-        ${formula('ตรวจข้อจำกัดอายุสินค้า', `จำนวนที่คาดว่าขายทัน = d × อายุสินค้า = ${n(fc.d)} × ${n(p.shelf_life_days)}`, `≈ ${n(pl.cap)} ${p.unit}`)}
-        ${formula('จำนวนแนะนำสั่งจริง', pl.limited ? `EOQ ${n(pl.eoq)} > จำนวนที่ขายทัน ${n(pl.cap)} → ปัดจำนวนที่ขายทันลง` : `EOQ ${n(pl.eoq)} ≤ จำนวนที่ขายทัน ${n(pl.cap)} → ปัด EOQ เป็นจำนวนเต็ม`, `${n(pl.qty, 0)} ${p.unit}/ครั้ง`)}
-        <p class="worked-answer"><b>อธิบายตอนนำเสนอ:</b> “EOQ หาจำนวนสั่งที่สมดุลระหว่างต้นทุนสั่งซื้อกับต้นทุนเก็บรักษา จากนั้นระบบจำกัดจำนวนตามอายุสินค้า จึงแสดงทั้ง EOQ ตามสูตรและจำนวนแนะนำสั่งจริง”</p>
+        ${formula('ยอดขายคาดการณ์ช่วงอายุล็อตใหม่', `d × อายุ = ${n(fc.d)} × ${n(p.shelf_life_days)} (ใช้ d คงที่)`, `${n(pl.window.shelfDemand)} ${p.unit}`)}
+        ${formula('สต็อกเดิมคาดเหลือตอนรับ', `วันรับที่ใช้คำนวณ ${pl.arrivalDate || '—'}; จำลองขายและตัดหมดอายุแบบ FEFO รวมใบสั่งยืนยันก่อนหน้า`, `${n(pl.window.arrivalStock)} ${p.unit}`)}
+        ${formula('เพดานขายทันหลังหักล็อตเดิม', `max(0, ยอดช่วงอายุ − ยอดที่ล็อตเดิมหมดอายุก่อน/พร้อมกันใช้ไป) = max(0, ${n(pl.window.shelfDemand)} − ${n(pl.window.competingSales)})`, `${n(pl.cap)} ${p.unit} → ปัดลง ${n(pl.integerCap, 0)}`)}
+        ${formula('จำนวนแนะนำเป็นจำนวนเต็ม', `min(round(EOQ), floor(เพดาน)) = min(${n(pl.roundedEOQ, 0)}, ${n(pl.integerCap, 0)})`, `${n(pl.qty, 0)} ${p.unit}/ครั้ง`)}
+        <p class="worked-answer"><b>สถานะแผน:</b> ${e(Calc.orderLabel(pl))}${pl.review ? ' · ต้องทบทวนก่อนสั่ง ไม่เพิ่มเป็น 1 ชิ้นโดยอัตโนมัติ' : ''}</p>
+        ${pl.window.rows.length ? `<details class="worked-table"><summary>ตรวจการคาดการณ์ล็อตเดิมรายวัน (${pl.window.rows.length} วัน)</summary>${miniTable(['วัน', 'คงเหลือหลังตัดหมดอายุ/รับของ', 'หมดอายุ', 'ยอดที่ล็อตเดิมใช้', 'ยอดที่เหลือให้ล็อตใหม่', 'ล็อตเดิมปลายวัน'], pl.window.rows.map(r => [Calc.addDays(t.today, r.day), n(r.opening), n(r.expired), n(r.soldExisting), n(r.availableForNew), n(r.closingExisting)]))}</details>` : ''}
+        <p class="worked-note">วันหมดอายุเป็นขอบเขตที่ห้ามขาย ล็อตใหม่ถือว่ามีอายุเต็มเมื่อรับเข้า และล็อตเดิมหมดอายุก่อน/พร้อมล็อตใหม่ใช้ยอดขายก่อน ตารางนี้จำลองความสามารถขายล็อตใหม่ ไม่ใช่ยอดขายจริงหรือการรับประกันขายหมด ${pl.projectionMode === 'aggregate' ? 'ไม่มีข้อมูลล็อต จึงสมมติสต็อกเดิมยังใช้ได้และขายก่อน' : ''}</p>
       </section>
       <section class="worked-step" id="worked-confidence"><h4><span>04</span>คำนวณ Confidence จากความคลาดเคลื่อนย้อนหลัง</h4>
         <p>แต่ละวันทดสอบใช้ค่าพยากรณ์ที่คำนวณจากวันก่อนหน้า แล้วหา eₜ = ยอดจริง − ค่าพยากรณ์ และยกกำลังสอง</p>
@@ -65,7 +70,7 @@ const CalculationDetails = {
         <details class="worked-table"><summary>ตรวจทีละวัน ${ci.backtest.tested} วัน</summary>${miniTable(['วันที่', 'จุดก่อนวันทดสอบ', 'RMSE ก่อนวันทดสอบ', 'ขอบล่าง', 'ยอดจริง', 'ขอบบน', 'ผล'], ci.backtest.checks.map(r => [t.dates[r.index], r.priorSamples, n(r.priorRmse), n(r.lo), n(r.actual), n(r.hi), r.covered ? 'อยู่ในช่วง' : 'นอกช่วง']))}</details>
       </section>
       <aside class="worked-answer"><b>คำตอบสั้นเมื่ออาจารย์ถามเรื่องข้อมูล:</b> “ยอดรายวันมาจากข้อมูลขายที่นำเข้าในฐานข้อมูล ส่วนต้นทุน ค่าสั่งซื้อ และอายุสินค้ามาจากตารางสินค้า อัตราเก็บรักษาเป็นสมมติฐานที่ปรับได้ ตัวเลขทุกส่วนคำนวณใหม่ตามสินค้าและวิธีพยากรณ์ที่เลือก”</aside>
-      <p class="worked-note">อ้างอิงหลักการ: <a href="https://otexts.com/fpp2/prediction-intervals.html" target="_blank" rel="noopener">Forecasting: Principles and Practice — Prediction intervals</a> · <a href="https://ctl.mit.edu/sites/ctl.mit.edu/files/attachments/S2%20-%20Aug%204%20-%20W2%20-%20Slides.pdf" target="_blank" rel="noopener">MIT CTL — Inventory Management</a></p>
+      <p class="worked-note">อ้างอิงหลักการ: <a href="https://otexts.com/fpp2/prediction-intervals.html" target="_blank" rel="noopener">Forecasting: Principles and Practice — Prediction intervals</a> · <a href="https://live.ocw.mit.edu/courses/2-854-introduction-to-manufacturing-systems-fall-2016/6c8fec8f99bcf7059b73b82e96d43901_MIT2_854F16_Inventory.pdf" target="_blank" rel="noopener">MIT OpenCourseWare — Inventory</a></p>
     </article>`;
   },
 

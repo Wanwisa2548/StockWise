@@ -92,7 +92,7 @@ const App = {
 
   esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); },
   // จัดรูปแบบตัวเลขมีจุลภาค เช่น 1361 → "1,361", 42.3 → "42.3"
-  fmt(n, dec = 0) { return Number(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }); },
+  fmt(n, dec = 0) { return n === null || n === undefined || !Number.isFinite(Number(n)) ? '—' : Number(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }); },
   money(n, dec = 2) { return '€' + this.fmt(n, dec); },
   downloadCSV(filename, rows) {
     const cell = value => {
@@ -196,9 +196,8 @@ const App = {
 
   // ตัวเลขแจ้งเตือนบนแท็บ: จำนวนสินค้าที่ต้องสั่งวันนี้ และจำนวนล็อตที่ควรจัดโปร/นำออก
   updateBadges() {
-    const d = this.data, fcs = Calc.forecastAll(d, this.settings), stock = Calc.stockByProduct(d);
-    const opts = { serviceLevel: this.settings.serviceLevel, holdRate: this.settings.holdRate, today: d.today };
-    const order = d.products.filter(p => Calc.plan(p, fcs[p.id], stock[p.id], opts).days <= 0 && !this.pendingOrder(p.id)).length;
+    const d = this.data, fcs = Calc.forecastAll(d, this.settings);
+    const order = d.products.filter(p => { const plan = Calc.planFor(d, p, fcs[p.id], this.settings); return plan.dueToday || plan.review; }).length;
     const expiry = Calc.analyzeLots(d, fcs).filter(r => r.atRisk && !this.promoOfLot(r.lot.id)).length;
     [['order', order], ['expiry', expiry]].forEach(([k, n]) => {
       const el = document.getElementById('cnt-' + k);

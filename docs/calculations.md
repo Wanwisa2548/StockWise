@@ -36,11 +36,21 @@ Reference: [Forecasting: Principles and Practice — Prediction intervals](https
 
 `EOQ = sqrt(2 × D × S / H)`
 
-The theoretical EOQ is shown separately from the recommended quantity. If EOQ exceeds daily forecast × shelf life, the recommended quantity is capped at that sellable amount, rounded down. Otherwise it is the rounded EOQ. This is the existing application's shelf-life heuristic; it does not model a production process or guarantee no waste.
+The theoretical EOQ remains separate from the executable recommendation. `planFor` projects current unexpired, received lots and confirmed pending receipts using FEFO and a constant daily forecast `d`. It finds the first start-of-day stock level at/below ROP (after expiry/receipts), then evaluates the proposed arrival after lead time. The new lot has a full shelf life on receipt and cannot sell on/after its expiry date.
+
+During that new lot's selling window, earlier/equal-expiry existing lots consume forecast demand first. Later-expiry stock does not reduce the new lot's headroom, because FEFO sells the new lot first. `cap = max(0, d × shelf_life − forecast sales allocated to earlier/equal-expiry existing lots)` and `qty = min(round(EOQ), floor(cap))`. Applying the integer cap after rounding prevents 10.61 EOQ / 10.8 cap from becoming an 11-unit recommendation.
+
+The UI and CSV expose projected stock on arrival, existing-lot demand consumption, raw/integer cap, planned arrival, and the decision reason. The worked worksheet includes a daily projection trace. Order actions are available only for a valid, positive, due-today recommendation with no pending order. Future-date quantities must be recalculated when due; they cannot be executed early using today's arrival date. Existing backend purchase-order duplicate protection remains active.
+
+After accumulating fractional FEFO usage, a cap within 1e-9 units of a positive integer is normalized to that integer to remove floating-point cancellation (e.g. 0.9999999999999993 becomes 1). This does not convert ordinary sub-unit headroom or tiny positive demand into a one-unit order or a no-demand state.
+
+Positive demand with a cap below one unit is marked for review, not "no order needed". EOQ rounding below one unit is a separate review state. Neither case is automatically increased to one unit, since that can exceed the waste constraint. Zero demand, old stock covering the window, and pending orders have distinct states. Missing/insufficient forecast errors, invalid costs/rates/lifetimes, and a projection beyond the 3,650-day review horizon block the recommendation and request review.
+
+The low-level `Calc.plan` can also accept aggregate stock without lots. That fallback conservatively assumes residual stock is still usable and sells before the new lot; it is labeled `aggregate` in exports. Production UI and retrospective policy experiments supply lot details. Simulations assume constant `d` over each planning window even for seasonal naïve, stable lead time, and full shelf life on receipt. This remains a planning heuristic, not a production optimizer or a guarantee of no waste/service level.
 
 The dashboard displays each product's own EOQ and selling unit. It does not sum unlike units into a store-wide EOQ. Changing the 7/14/28-day revenue display does not change the 56-day model inputs. Changing forecast settings or planning costs does change the resulting calculations.
 
-Reference: [MIT Center for Transportation & Logistics — Inventory Management](https://ctl.mit.edu/sites/ctl.mit.edu/files/attachments/S2%20-%20Aug%204%20-%20W2%20-%20Slides.pdf).
+Reference: [MIT OpenCourseWare — Inventory](https://live.ocw.mit.edu/courses/2-854-introduction-to-manufacturing-systems-fall-2016/6c8fec8f99bcf7059b73b82e96d43901_MIT2_854F16_Inventory.pdf).
 
 ## Worked calculations for presentations
 
@@ -48,7 +58,7 @@ The dashboard's “ดูการแทนค่า EOQ ทีละขั้�
 
 “บันทึกใบคำนวณออฟไลน์” saves a standalone HTML worksheet with the current values. It works without a database connection, includes expandable audit tables and opens all audit tables for browser printing. This is an explicit snapshot export; the production app continues to use its database connection and does not silently substitute CSV or example data.
 
-An example for Traditional Baguette is saved at `outputs/presentation/stockwise-worked-baguette.html`. It uses the supplied CSV's positive-quantity daily aggregates and the previously verified database inputs (cost €0.39, order cost €5, shelf life 1 day). Its header explicitly states that the friend's database was unavailable when the example was created. This example is not evidence of a fresh database query.
+An historical example for Traditional Baguette is saved at `outputs/presentation/stockwise-worked-baguette.html`. It predates the lot-adjusted cap and is retained as an audit snapshot, not the current recommendation. It uses the supplied CSV's positive-quantity daily aggregates and previously verified database inputs (cost €0.39, order cost €5, shelf life 1 day). Its header states that the friend's database was unavailable when created. Export a fresh worksheet from the current UI for the new cap/projection; the historical file is not evidence of a fresh database query.
 
 ## Verification commands
 

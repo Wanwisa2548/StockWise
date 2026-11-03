@@ -121,8 +121,47 @@ const root = path.resolve(__dirname, '..');
       await page.locator(`#tab-${tab}`).click();
       assert.equal(await page.locator('#page svg').evaluateAll(nodes => nodes.some(el => /NaN|Infinity/.test(el.outerHTML))), false, `Zero-demand SVG: ${tab}`);
     }
+    // Valid two-decimal product costs reproduce the EOQ rounding boundary in the real UI.
+    const eoqData = require('../demo-data')();
+    eoqData.products = [{ ...eoqData.products[0], cost: 2.8, price: 4, order_cost: .02, shelf_life_days: 2, lead_time_days: 1 }];
+    eoqData.dailySales = { 1: Array.from({ length: 56 }, (_, i) => [5, 5, 5, 5, 6, 6, 6][i % 7]) };
+    eoqData.lots = []; eoqData.transactions = [];
+    await page.unroute('**/api/data');
+    await page.route('**/api/data', route => route.fulfill({ json: eoqData }));
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(base + '/?fixture=eoq-rounding#order');
+    const planRow = page.locator('[data-plan-product="1"]');
+    await planRow.waitFor();
+    assert.equal(await planRow.locator('[data-po]').getAttribute('data-qty'), '10');
+    await page.locator('#tab-overview').click();
+    await page.locator('.dashboard-details > summary').click();
+    assert.equal(await page.locator('#dashboard-order-qty').innerText(), '10');
+    const planningDownload = page.waitForEvent('download'); await page.locator('#export-planning').click();
+    await (await planningDownload).saveAs(path.join(out, 'demo-eoq-boundary.csv'));
+    const planningCSV = await fs.readFile(path.join(out, 'demo-eoq-boundary.csv'), 'utf8');
+    assert.match(planningCSV, /projected_stock_at_arrival/); assert.match(planningCSV, /decision_reason/);
+    await page.locator('[data-calculation=eoq]').click();
+    assert.match(await page.locator('#worked-eoq').innerText(), /min\(11, 10\)/);
+    await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+    await page.screenshot({ path: path.join(out, 'eoq-rounding.png'), fullPage: true });
+    // Fractional forecasts from integer sales must be a review state, not "no order needed".
+    eoqData.products[0].shelf_life_days = 1;
+    eoqData.dailySales[1] = Array.from({ length: 56 }, (_, i) => [0, 0, 1, 0, 1, 0, 1][i % 7]);
+    await page.goto(base + '/?fixture=eoq-low-demand#order');
+    await page.locator('[data-plan-product="1"]').waitFor();
+    assert.match(await page.locator('[data-plan-product="1"]').innerText(), /เพดานขายทันต่ำกว่า 1 ชิ้น/);
+    assert.equal(await page.locator('[data-plan-product="1"] [data-po]').count(), 0);
+    assert.equal(await page.locator('#cnt-order').innerText(), '1', 'Review-required products must be visible in the order badge');
+    await page.locator('#tab-overview').click();
+    await page.locator('.dashboard-details > summary').click();
+    assert.match(await page.locator('#dashboard-order-status').innerText(), /ต่ำกว่า 1 ชิ้น/);
+    assert.equal(await page.locator('#dashboard-order-qty').innerText(), '0');
+    await page.locator('[data-calculation=eoq]').click();
+    assert.match(await page.locator('#worked-eoq').innerText(), /ต้องทบทวนก่อนสั่ง/);
+    await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+    await page.screenshot({ path: path.join(out, 'eoq-low-demand.png'), fullPage: true });
     assert.deepEqual(errors, [], 'Browser runtime errors');
-    console.log('UI PASS: 9 pages, per-product model controls, isolated experiments, calculation details, CSV/HTML exports, print and mobile. Artifacts: outputs/verification');
+    console.log('UI PASS: 9 pages, model controls, isolated experiments, EOQ rounding/review states, worksheet and CSV consistency, print and mobile. Artifacts: outputs/verification');
   } finally {
     if (browser) await browser.close();
     server.kill();

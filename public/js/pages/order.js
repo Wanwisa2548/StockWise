@@ -23,9 +23,9 @@ Pages.order = {
       </div>
       <details class="card formula"><summary>สูตรและข้อจำกัดของแผนสั่งซื้อ</summary>
         d = ค่าพยากรณ์ยอดขายต่อวัน, σ = RMSE, D = d × 365, H = ราคาทุน × อัตราเก็บรักษา<br>
-        EOQ = √(2DS ÷ H) โดย S = ค่าสั่งซื้อต่อครั้ง · ถ้า EOQ &gt; d × อายุสินค้า จะจำกัดจำนวนสั่งที่ d × อายุสินค้า (ปัดลง)<br>
-        Safety Stock = z × σ × √L · ROP = d × L + Safety Stock · วันก่อนต้องสั่ง = max(0, ceil((สต็อกใช้ได้ − ROP) ÷ d))<br>
-        สมมติ Lead Time คงที่ ความคลาดเคลื่อนรายวันเป็นอิสระโดยประมาณ · ไม่ใช่โมเดลผลิตขนม · การจำกัดจำนวนด้วยอายุสินค้ายังไม่หักสต็อกที่อาจเหลือตอนรับเข้า
+        EOQ = √(2DS ÷ H) โดย S = ค่าสั่งซื้อต่อครั้ง · จำนวนแนะนำ = min(round(EOQ), floor(เพดานขายทันหลังหักล็อตเดิม))<br>
+        Safety Stock = z × σ × √L · ROP = d × L + Safety Stock · ประเมินวันสั่งจากสต็อกรายวันหลังตัดหมดอายุและรับใบสั่งที่ยืนยันแล้ว<br>
+        ใช้ยอดพยากรณ์ d คงที่ระหว่างจำลอง วันหมดอายุเริ่มนับจากวันรับสินค้าใหม่ · ล็อตหมดอายุก่อนหรือวันเดียวกันใช้ยอดขายก่อน · ไม่รับประกันขายหมดหรือระดับบริการจริง
       </details>`;
 
     const $ = id => root.querySelector(id);
@@ -38,20 +38,19 @@ Pages.order = {
     $('#o-h').oninput = e => { S.holdRate = Number(e.target.value) / 100; $('#o-hv').textContent = e.target.value + '%'; update(); App.updateBadges(); };
 
     function update() {
-      const stock = Calc.stockByProduct(d), fcs = Calc.forecastAll(d, S);
-      const opts = { serviceLevel: S.serviceLevel, holdRate: S.holdRate, today: d.today };
-      const plans = d.products.map(p => ({ p, pl: Calc.plan(p, fcs[p.id], stock[p.id], opts) }));
+      const fcs = Calc.forecastAll(d, S);
+      const plans = d.products.map(p => ({ p, pl: Calc.planFor(d, p, fcs[p.id], S) }));
 
       // เรียงตามความเร่งด่วน (จำนวนวันก่อนต้องสั่งน้อยสุดขึ้นก่อน)
       const rows = plans.slice().sort((a, b) => a.pl.days - b.pl.days).map(({ p, pl }) => `
-        <tr class="${pl.status === 'red' ? 'row-red' : ''}">
+        <tr data-plan-product="${p.id}" class="${pl.status === 'red' ? 'row-red' : ''}">
           <td>${BakeryVisuals.productCell(p)}<details class="dss-reason"><summary>เหตุผลและโมเดล</summary><p>${App.esc(Calc.orderExplanation(p, fcs[p.id], pl, App.pendingOrder(p.id)))}</p></details></td>
           <td>${App.fmt(pl.stock)}</td><td>${App.fmt(pl.d, 1)}</td>
-          <td><b>${App.fmt(pl.qty)}</b> ${App.esc(p.unit)}${pl.limited ? ' <span class="badge blue">จำกัดอายุ</span>' : ''}</td>
-          <td><span class="badge ${pl.status}">${pl.qty <= 0 ? 'ยังไม่ต้องสั่ง' : pl.days <= 0 ? 'วันนี้' : App.shortDate(pl.orderDate)}</span></td>
+          <td><b>${App.fmt(pl.qty)}</b> ${App.esc(p.unit)}${pl.limited ? ' <span class="badge blue">จำกัดขายทัน</span>' : ''}</td>
+          <td><span class="badge ${pl.status}">${App.esc(Calc.orderLabel(pl))}</span></td>
           <td>${(() => { const po = App.pendingOrder(p.id);
             return po ? `<span class="badge blue">สั่งแล้ว · ถึง ${App.shortDate(po.expected_date)}</span>`
-                      : pl.qty <= 0 ? '<span class="muted">ไม่แนะนำสั่ง</span>' : `<button type="button" class="btn go ${pl.status === 'red' ? '' : 'secondary'}" data-po="${p.id}" data-qty="${pl.qty}">สั่งซื้อ ${App.fmt(pl.qty)}</button>`; })()}</td>
+                      : !pl.canOrder ? `<span class="muted">${pl.review ? 'ควรทบทวนก่อนสั่ง' : pl.reason === 'ready' ? 'ยังไม่ถึงวันสั่ง' : '—'}</span>` : `<button type="button" class="btn go" data-po="${p.id}" data-qty="${pl.qty}">สั่งซื้อ ${App.fmt(pl.qty)}</button>`; })()}</td>
         </tr>`).join('');
       $('#o-table').innerHTML = `<table><thead><tr>
         <th>สินค้า</th><th>สต็อกใช้ได้</th><th>คาดขาย/วัน</th><th>แนะนำสั่ง/ครั้ง</th><th>ควรสั่งเมื่อ</th><th>ดำเนินการ</th>

@@ -7,13 +7,11 @@ Pages.overview = {
   render(root) {
     const d = App.data, settings = App.settings;
     const fcs = Calc.forecastAll(d, settings);
-    const stock = Calc.stockByProduct(d);
-    const opts = { serviceLevel: settings.serviceLevel, holdRate: settings.holdRate, today: d.today };
-    const plans = d.products.map(p => ({ p, pl: Calc.plan(p, fcs[p.id], stock[p.id], opts) }));
+    const plans = d.products.map(p => ({ p, pl: Calc.planFor(d, p, fcs[p.id], settings) }));
     const lotAnalysis = Calc.analyzeLots(d, fcs);
     const risky = lotAnalysis.filter(r => r.atRisk && !r.expired && !App.promoOfLot(r.lot.id));
     const expired = lotAnalysis.filter(r => r.expired);
-    const orderToday = plans.filter(x => x.pl.days <= 0 && !App.pendingOrder(x.p.id));
+    const orderToday = plans.filter(x => x.pl.dueToday || x.pl.review);
     const icon = App.icon.bind(App), esc = App.esc.bind(App), fmt = App.fmt.bind(App), money = App.money.bind(App);
     const count = this.period;
     const dates = d.dates.slice(-count);
@@ -70,7 +68,7 @@ Pages.overview = {
         <div class="kpi primary-metric"><div class="metric-head"><span class="label">ยอดขายรวม</span><span class="metric-icon">${icon('revenue')}</span></div><div class="metric-value-row"><div class="value">${money(revenue)}</div>${BakeryVisuals.sparkline(currentValues)}</div><div class="metric-foot">${change(revenue, previousRevenue)}</div></div>
         <div class="kpi"><div class="metric-head"><span class="label">จำนวนสินค้าที่ขาย</span><span class="metric-icon">${icon('bag')}</span></div><div class="metric-value-row"><div class="value">${fmt(pieces)}<span class="metric-unit">ชิ้น</span></div>${BakeryVisuals.sparkline(dates.map(date => sum(rows.filter(t => t.sold_at.startsWith(date)), t => t.qty)))}</div><div class="metric-foot">${change(pieces, previousPieces)}</div></div>
         <div class="kpi"><div class="metric-head"><span class="label">จำนวนบิล</span><span class="metric-icon">${icon('receipt')}</span></div><div class="metric-value-row"><div class="value">${fmt(receipts(rows))}<span class="metric-unit">บิล</span></div>${BakeryVisuals.sparkline(dates.map(date => receipts(rows.filter(t => t.sold_at.startsWith(date)))))}</div><div class="metric-foot">${change(receipts(rows), receipts(previousRows))}</div></div>
-        <div class="kpi"><div class="metric-head"><span class="label">พยากรณ์วันถัดไป</span><span class="metric-icon">${icon('oven')}</span></div><div class="metric-value-row"><div class="value">${fmt(nextDay)}<span class="metric-unit">หน่วยขาย</span></div><span class="forecast-motif">${icon('wheat')}</span></div><div class="metric-foot"><span class="delta">ช่วง ${confidenceLabel}</span><span>${rangeText(totalConfidence)} หน่วยขาย</span></div></div>
+        <div class="kpi"><div class="metric-head"><span class="label">พยากรณ์วันถัดไป</span><span class="metric-icon">${icon('oven')}</span></div><div class="metric-value-row"><div class="value">${fmt(nextDay, nextDay > 0 && nextDay < 1 ? 2 : 0)}<span class="metric-unit">หน่วยขาย</span></div><span class="forecast-motif">${icon('wheat')}</span></div><div class="metric-foot"><span class="delta">ช่วง ${confidenceLabel}</span><span>${rangeText(totalConfidence)} หน่วยขาย</span></div></div>
       </div>
 
       <details class="planning-section dashboard-details" ${this.calculationOpen ? 'open' : ''}><summary>ตรวจผลคำนวณรายสินค้า</summary>
@@ -84,15 +82,15 @@ Pages.overview = {
             <div class="coverage-row"><div><span>ครอบคลุมจริงย้อนหลัง</span><b id="dashboard-coverage">${coverage.coverage === null ? '—' : fmt(coverage.coverage * 100, 1) + '%'}</b></div><small>${coverage.hits}/${coverage.tested} วันทดสอบ<br>RMSE ${fmt(confidence.rmse, 2)} · ${confidence.samples} จุดย้อนหลัง</small></div>
             <button type="button" class="text-button" data-calculation="confidence">${icon('receipt')}ดูวิธีคำนวณช่วงคาดการณ์ ${icon('arrow')}</button>
           </section>
-          <section class="card eoq-card" aria-labelledby="eoq-heading"><div class="section-head"><div><h3 id="eoq-heading">จำนวนสั่งซื้อที่เหมาะสม (EOQ)</h3><p class="section-caption">${esc(englishName(selectedProduct))} · ${selected.limited ? 'ปรับจำนวนตามอายุสินค้า' : 'ใช้จำนวนตามสูตร EOQ'}</p></div><span class="planning-icon wheat">${icon('order')}</span></div>
-            <div class="eoq-values"><div><span>EOQ ตามสูตร</span><strong id="dashboard-eoq">${fmt(selected.eoq, 1)}</strong><small>${esc(selectedProduct.unit)} / ครั้ง</small></div><div><span>จำนวนแนะนำสั่งจริง</span><strong id="dashboard-order-qty">${fmt(selected.qty)}</strong><small>${esc(selectedProduct.unit)} / ครั้ง ${selected.limited ? '<span class="badge orange">จำกัดอายุสินค้า</span>' : ''}</small></div></div>
-            <dl class="eoq-inputs"><div><dt>D · ความต้องการ / ปี</dt><dd>${fmt(selected.D, 1)} ${esc(selectedProduct.unit)}</dd></div><div><dt>S · ค่าสั่งซื้อ / ครั้ง</dt><dd>${money(selectedProduct.order_cost)}</dd></div><div><dt>H · ค่าเก็บ / หน่วย / ปี</dt><dd>${money(selected.H, 4)}</dd></div><div><dt>อายุสินค้า / Lead time</dt><dd>${selectedProduct.shelf_life_days} / ${selectedProduct.lead_time_days} วัน</dd></div></dl>
+          <section class="card eoq-card" aria-labelledby="eoq-heading"><div class="section-head"><div><h3 id="eoq-heading">EOQ และจำนวนแนะนำ</h3><p class="section-caption">${esc(englishName(selectedProduct))}</p></div><span class="planning-icon wheat">${icon('order')}</span></div>
+            <div class="eoq-values"><div><span>EOQ ตามสูตร</span><strong id="dashboard-eoq">${fmt(selected.eoq, 1)}</strong><small>${esc(selectedProduct.unit)} / ครั้ง</small></div><div><span>จำนวนแนะนำหลังหักล็อตเดิม</span><strong id="dashboard-order-qty">${fmt(selected.qty)}</strong><small>${esc(selectedProduct.unit)} / ครั้ง ${selected.limited ? '<span class="badge orange">จำกัดขายทัน</span>' : ''}</small></div></div><p id="dashboard-order-status" class="dss-note">${esc(Calc.orderLabel(selected))}</p>
+            <dl class="eoq-inputs"><div><dt>D · ความต้องการ / ปี</dt><dd>${fmt(selected.D, 1)} ${esc(selectedProduct.unit)}</dd></div><div><dt>S · ค่าสั่งซื้อ / ครั้ง</dt><dd>${money(selectedProduct.order_cost)}</dd></div><div><dt>H · ค่าเก็บ / หน่วย / ปี</dt><dd>${money(selected.H, 4)}</dd></div><div><dt>อายุสินค้า / Lead time</dt><dd>${selectedProduct.shelf_life_days} / ${selectedProduct.lead_time_days} วัน</dd></div><div><dt>ล็อตเดิมคาดเหลือวันรับ</dt><dd>${fmt(selected.window.arrivalStock, 2)}</dd></div><div><dt>เพดานขายทันล็อตใหม่</dt><dd>${fmt(selected.cap, 2)}</dd></div></dl>
             <button type="button" class="text-button" data-go="order">ดูแผนสั่งซื้อ ${icon('arrow')}</button>
             <button type="button" class="text-button" data-calculation="eoq">${icon('receipt')}ดูวิธีคำนวณ EOQ ${icon('arrow')}</button>
           </section>
         </div>
         <details id="calculation-workbook" class="calculation-workbook" ${this.workedOpen ? 'open' : ''}><summary><span>${icon('receipt')}แสดงวิธีคำนวณทีละขั้น</span><small>สูตร · ค่าที่แทน · ตารางตรวจย้อนหลัง · สำหรับนำเสนอ</small></summary><div class="worked-toolbar"><span>เลือกสินค้าเพื่อดูการแทนค่าและส่งออกใบคำนวณ</span><button type="button" class="btn secondary" id="export-worked-calculation">${icon('download')}บันทึกใบคำนวณออฟไลน์</button></div><div id="calculation-detail-root"></div></details>
-        <details class="planning-method"><summary>ที่มาข้อมูลและสมมติฐานการคำนวณ</summary><p>ใช้ยอดขายที่นำเข้าในฐานข้อมูลช่วง ${App.thaiDate(d.dates[0])} – ${App.thaiDate(d.dates.at(-1))} จำนวน ${fmt(d.transactions.length)} รายการ และต้นทุน ค่าสั่งซื้อ อายุสินค้า จากข้อมูลสินค้าปัจจุบัน อัตราเก็บรักษา ${fmt(settings.holdRate * 100)}%/ปีเป็นค่าที่ตั้งในแผนจัดซื้อ</p><p>Confidence ${confidenceLabel} เป็นระดับเป้าหมายของช่วงคาดการณ์แบบสองด้านโดยประมาณ ภายใต้สมมติฐานความคลาดเคลื่อนใกล้การแจกแจงปกติ ส่วน Coverage เป็นผลทดสอบจริงตามลำดับเวลา โดยเริ่มทดสอบเมื่อมีความคลาดเคลื่อนก่อนหน้าอย่างน้อย 14 จุด</p><p>จำนวนแนะนำสั่งจริงจำกัดที่ยอดขายพยากรณ์ × อายุสินค้า เมื่อ EOQ สูงกว่าจำนวนที่ขายทัน ระดับบริการ ${fmt(settings.serviceLevel * 100)}% ใช้คำนวณ Safety Stock/ROP แยกจากระดับ Confidence</p></details>
+        <details class="planning-method"><summary>ที่มาข้อมูลและสมมติฐานการคำนวณ</summary><p>ใช้ยอดขายที่นำเข้าในฐานข้อมูลช่วง ${App.thaiDate(d.dates[0])} – ${App.thaiDate(d.dates.at(-1))} จำนวน ${fmt(d.transactions.length)} รายการ และต้นทุน ค่าสั่งซื้อ อายุสินค้า จากข้อมูลสินค้าปัจจุบัน อัตราเก็บรักษา ${fmt(settings.holdRate * 100)}%/ปีเป็นค่าที่ตั้งในแผนจัดซื้อ</p><p>Confidence ${confidenceLabel} เป็นระดับเป้าหมายของช่วงคาดการณ์แบบสองด้านโดยประมาณ ภายใต้สมมติฐานความคลาดเคลื่อนใกล้การแจกแจงปกติ ส่วน Coverage เป็นผลทดสอบจริงตามลำดับเวลา โดยเริ่มทดสอบเมื่อมีความคลาดเคลื่อนก่อนหน้าอย่างน้อย 14 จุด</p><p>จำนวนแนะนำจำกัดด้วยยอดที่ล็อตใหม่คาดว่าขายทัน หลังจำลองล็อตเดิมและใบสั่งรอรับแบบ FEFO ด้วยยอดขาย d คงที่ และปัดเพดานลงก่อนเลือกจำนวนเต็ม ระดับบริการ ${fmt(settings.serviceLevel * 100)}% ใช้คำนวณ Safety Stock/ROP แยกจากระดับ Confidence</p></details>
       </details>
 
       <div class="dashboard-upper">
@@ -104,7 +102,7 @@ Pages.overview = {
         <section class="card decision-card" aria-labelledby="decision-heading">
           <div><h3 id="decision-heading">สิ่งที่ควรจัดการวันนี้</h3><p class="decision-description">${App.thaiDate(d.today)}</p></div>
           <div class="decision-illustration" aria-hidden="true">${BakeryVisuals.product({name:'baguette'}, 'decision-baguette')}${BakeryVisuals.product({name:'croissant'}, 'decision-croissant')}</div>
-          <div class="decision-stats"><div><strong>${orderToday.length.toString().padStart(2, '0')}</strong><small>สินค้าที่ควรสั่งวันนี้</small></div><div><strong>${(risky.length + expired.length).toString().padStart(2, '0')}</strong><small>ล็อตที่ควรดูแลก่อน</small></div></div>
+          <div class="decision-stats"><div><strong>${orderToday.length.toString().padStart(2, '0')}</strong><small>สินค้าที่ควรสั่งหรือทบทวน</small></div><div><strong>${(risky.length + expired.length).toString().padStart(2, '0')}</strong><small>ล็อตที่ควรดูแลก่อน</small></div></div>
           <button type="button" class="decision-button" data-go="${orderToday.length ? 'order' : risky.length + expired.length ? 'expiry' : 'forecast'}">ดูคำแนะนำการวางแผน ${icon('arrow')}</button>
         </section>
       </div>
@@ -118,7 +116,7 @@ Pages.overview = {
           <div class="section-head"><div><h3 id="insight-heading">ข้อสังเกตจากข้อมูล</h3></div>${icon('sparkle', 'insight-header-icon')}</div>
           <div class="recommend-list">
             <div class="recommendation"><span class="recommend-icon">${icon('expiry')}</span><div><h4>${hours.some(v => v > 0) ? "เตรียมพร้อมก่อน " + hh(peak) : "ยังไม่พบยอดขาย"}</h4><p>${hours.some(v => v > 0) ? `ช่วง ${hh(peak)}–${hh((peak + 1) % 24)} ขายดีที่สุดใน ${count} วันที่เลือก` : "ตรวจข้อมูลยอดขายก่อนวางแผนช่วงเวลาขาย"}</p></div></div>
-            <div class="recommendation"><span class="recommend-icon">${icon('forecast')}</span><div><h4>${topForecast.pl.d > 0 ? esc(shortName(topForecast.p)) + " มีความต้องการสูง" : "ยังไม่มีความต้องการที่พยากรณ์"}</h4><p>คาดว่าจะขายได้ ${fmt(topForecast.pl.d)} ${esc(topForecast.p.unit)}/วัน ตรวจสอบสต็อกก่อนเริ่มวันใหม่</p></div></div>
+            <div class="recommendation"><span class="recommend-icon">${icon('forecast')}</span><div><h4>${topForecast.pl.d > 0 ? esc(shortName(topForecast.p)) + " มีความต้องการสูง" : "ยังไม่มีความต้องการที่พยากรณ์"}</h4><p>คาดว่าจะขายได้ ${fmt(topForecast.pl.d, 1)} ${esc(topForecast.p.unit)}/วัน ตรวจสอบสต็อกก่อนเริ่มวันใหม่</p></div></div>
             <div class="recommendation"><span class="recommend-icon">${icon('leaf')}</span><div><h4>${expired.length ? `นำสินค้าหมดอายุ ${expired.length} ล็อตออกก่อน` : risky.length ? `ดูแลของสด ${risky.length} ล็อตก่อน` : 'สต็อกสดใหม่ อยู่ในเกณฑ์ดี'}</h4><p>${expired.length ? 'ตรวจสอบล็อตที่หมดอายุในหน้าจัดการของใกล้หมดอายุ ก่อนจัดสินค้ารอบใหม่' : risky.length ? `คาดว่ามี ${fmt(riskPieces)} ชิ้นที่ขายไม่ทัน ลองใช้ส่วนลดตามคำแนะนำเพื่อลดของเสีย` : 'ทุกล็อตคาดว่าจะขายทันก่อนหมดอายุ ติดตามยอดขายเพื่อรักษาระดับสต็อกให้เหมาะสม'}</p></div></div>
           </div>
 
@@ -129,7 +127,7 @@ Pages.overview = {
         <div class="table-wrap"><table><thead><tr><th>สินค้า</th><th>สต็อกใช้ได้</th><th>คาดขาย/วัน</th><th>พอขายได้</th><th>คำแนะนำ</th></tr></thead><tbody>
         ${plans.map(({ p, pl }) => {
           const cover = pl.d > 0 ? pl.stock / pl.d : null;
-          return `<tr><td><span class="product-cell"><span class="table-product-art">${BakeryVisuals.product(p)}</span>${esc(englishName(p))}</span></td><td>${fmt(pl.stock)} <span class="muted">${esc(p.unit)}</span></td><td>${fmt(pl.d, 1)}</td><td>${cover === null ? '—' : fmt(cover, 1) + ' วัน'}</td><td>${App.pendingOrder(p.id) ? '<span class="badge blue">รอรับสินค้า</span>' : `<span class="badge ${pl.status}">${pl.qty <= 0 ? 'ยังไม่ต้องสั่ง' : pl.days <= 0 ? 'ควรสั่งวันนี้' : `สั่งใน ${pl.days} วัน`}</span>`}</td></tr>`;
+          return `<tr><td><span class="product-cell"><span class="table-product-art">${BakeryVisuals.product(p)}</span>${esc(englishName(p))}</span></td><td>${fmt(pl.stock)} <span class="muted">${esc(p.unit)}</span></td><td>${fmt(pl.d, 1)}</td><td>${cover === null ? '—' : fmt(cover, 1) + ' วัน'}</td><td>${App.pendingOrder(p.id) ? '<span class="badge blue">รอรับสินค้า</span>' : `<span class="badge ${pl.status}">${esc(Calc.orderLabel(pl))}</span>`}</td></tr>`;
         }).join('')}</tbody></table></div>
       </section>`;
 
@@ -150,11 +148,11 @@ Pages.overview = {
     });
     root.querySelector('#dashboard-product').onchange = event => { App.selProduct = Number(event.target.value); this.render(root); };
     root.querySelector('#export-planning').onclick = () => {
-      const round = value => value === null ? '' : Number(value.toFixed(6));
-      const csv = [['product_id', 'product', 'unit', 'history_start', 'history_end', 'planning_date', 'method', 'parameter', 'forecast_per_day', 'confidence_level', 'prediction_lower_next_day', 'prediction_upper_next_day', 'rmse', 'backtest_samples', 'coverage_hits', 'coverage_tested', 'coverage_rate', 'annual_demand', 'unit_cost_eur', 'order_cost_eur', 'holding_rate', 'holding_cost_eur_per_unit_year', 'eoq', 'shelf_life_days', 'lead_time_days', 'recommended_quantity', 'service_level', 'safety_stock', 'reorder_point', 'stock']];
+      const round = value => Number.isFinite(value) ? Number(value.toFixed(6)) : '';
+      const csv = [['product_id', 'product', 'unit', 'history_start', 'history_end', 'planning_date', 'method', 'parameter', 'forecast_per_day', 'confidence_level', 'prediction_lower_next_day', 'prediction_upper_next_day', 'rmse', 'backtest_samples', 'coverage_hits', 'coverage_tested', 'coverage_rate', 'annual_demand', 'unit_cost_eur', 'order_cost_eur', 'holding_rate', 'holding_cost_eur_per_unit_year', 'eoq', 'shelf_life_days', 'lead_time_days', 'recommended_quantity', 'service_level', 'safety_stock', 'reorder_point', 'stock', 'shelf_window_demand', 'projected_stock_at_arrival', 'existing_lot_sales_in_window', 'sellable_cap', 'integer_cap', 'planned_arrival', 'decision_reason', 'requires_review', 'can_order', 'projection_mode']];
       plans.forEach(({ p, pl }) => {
         const ci = Calc.forecastConfidence(d.dailySales[p.id], fcs[p.id], confidenceLevel);
-        csv.push([p.id, p.name, p.unit, d.dates[0], d.dates.at(-1), d.today, fcs[p.id].method, fcs[p.id].param, round(pl.d), confidenceLevel, round(ci.lo), round(ci.hi), round(ci.rmse), ci.samples, ci.backtest.hits, ci.backtest.tested, round(ci.backtest.coverage), round(pl.D), p.cost, p.order_cost, settings.holdRate, round(pl.H), round(pl.eoq), p.shelf_life_days, p.lead_time_days, pl.qty, settings.serviceLevel, round(pl.safety), round(pl.rop), pl.stock]);
+        csv.push([p.id, p.name, p.unit, d.dates[0], d.dates.at(-1), d.today, fcs[p.id].method, fcs[p.id].param, round(pl.d), confidenceLevel, round(ci.lo), round(ci.hi), round(ci.rmse), ci.samples, ci.backtest.hits, ci.backtest.tested, round(ci.backtest.coverage), round(pl.D), p.cost, p.order_cost, settings.holdRate, round(pl.H), round(pl.eoq), p.shelf_life_days, p.lead_time_days, pl.qty, settings.serviceLevel, round(pl.safety), round(pl.rop), pl.stock, round(pl.window.shelfDemand), round(pl.window.arrivalStock), round(pl.window.competingSales), round(pl.cap), pl.integerCap, pl.arrivalDate, pl.reason, pl.review, pl.canOrder, pl.projectionMode]);
       });
       App.downloadCSV(`stockwise-confidence-eoq-${d.today}.csv`, csv);
       App.toast('ส่งออก Confidence และ EOQ จากข้อมูลปัจจุบันแล้ว');

@@ -160,30 +160,107 @@ Calc.stockByProduct = function (data) {
   return out;
 };
 
+// Project existing lots with constant forecast demand and FEFO. Expiry is exclusive.
+// During the new lot's selling window, earlier/equal-expiry lots consume demand first.
+Calc.orderWindow = function (inventory, d, rop, lead, life, trace = false) {
+  let lots = inventory.map(l => ({ ...l }));
+  const rows = [];
+  let day = 0, days = null, arrival = null, arrivalStock = 0, competingSales = 0;
+  const total = () => lots.filter(l => l.arrivesIn <= day).reduce((sum, l) => sum + l.qty, 0);
+  // Bound review horizon to 10 years; never silently guess beyond it.
+  while (day <= 3650 + lead + life) {
+    const expired = lots.filter(l => l.expiresIn <= day).reduce((sum, l) => sum + l.qty, 0);
+    lots = lots.filter(l => l.expiresIn > day && l.qty > 0);
+    const opening = total();
+    if (days === null && opening <= rop) { days = day; arrival = day + lead; }
+    if (days === null && day >= 3650) return { available: false, rows };
+    if (arrival !== null && day >= arrival + life) break;
+    if (day === arrival) arrivalStock = opening;
+    let remaining = d;
+    lots.sort((a, b) => a.expiresIn - b.expiresIn);
+    lots.forEach(l => {
+      if (l.arrivesIn > day || (arrival !== null && day >= arrival && l.expiresIn > arrival + life)) return;
+      const sold = Math.min(remaining, l.qty); l.qty -= sold; remaining -= sold;
+    });
+    if (arrival !== null && day >= arrival) competingSales += d - remaining;
+    if (trace) rows.push({ day, opening, expired, soldExisting: d - remaining, availableForNew: arrival !== null && day >= arrival ? remaining : null, closingExisting: total() });
+    day++;
+  }
+  const shelfDemand = d * life;
+  const rawCap = Math.max(0, shelfDemand - competingSales);
+  // Correct floating-point cancellation near an exact whole unit, not a business round-up.
+  const cap = Math.round(rawCap) > 0 && Math.abs(rawCap - Math.round(rawCap)) < 1e-9 ? Math.round(rawCap) : rawCap;
+  return { available: true, days, arrivalOffset: arrival, arrivalStock, competingSales, shelfDemand, cap, rows };
+};
+
+// Shared entry point for UI/worked calculations: actual lots and confirmed pending orders.
+Calc.planFor = function (data, product, fc, settings, trace = false) {
+  const offset = date => Math.round((Date.parse(date + 'T00:00:00Z') - Date.parse(data.today + 'T00:00:00Z')) / 86400000);
+  const inventory = data.lots.filter(l => l.product_id === product.id && l.qty_remaining > 0 && l.expiry_date > data.today && (!l.received_date || l.received_date <= data.today))
+    .map(l => ({ qty: l.qty_remaining, arrivesIn: 0, expiresIn: offset(l.expiry_date) }));
+  const orders = (data.orders || []).filter(o => o.product_id === product.id && o.status === 'ordered');
+  orders.filter(o => o.expected_date >= data.today).forEach(o => {
+    const arrivesIn = offset(o.expected_date);
+    inventory.push({ qty: o.qty, arrivesIn, expiresIn: arrivesIn + product.shelf_life_days });
+  });
+  return Calc.plan(product, fc, Calc.stockByProduct(data)[product.id], { ...settings, today: data.today, inventory, pending: orders.length > 0, trace });
+};
+
 // คำนวณแผนสั่งซื้อของสินค้า 1 ชนิด
 //   fc = ผลจาก Calc.forecast (ใช้ d และ σ = RMSE)
 //   opts = { serviceLevel, holdRate, today }
 Calc.plan = function (p, fc, stock, opts) {
   const d = fc.d;                                   // ยอดขายต่อวันที่พยากรณ์
-  const sigma = fc.metrics.rmse ?? 0;               // no history: plan is provisional
+  const valid = Number.isFinite(d) && d >= 0 && Number.isFinite(stock) && stock >= 0
+    && Number.isFinite(p.cost) && p.cost > 0 && Number.isFinite(p.order_cost) && p.order_cost > 0
+    && Number.isFinite(opts.holdRate) && opts.holdRate > 0 && opts.holdRate <= 1 && Calc.Z[opts.serviceLevel]
+    && Number.isInteger(p.lead_time_days) && p.lead_time_days >= 1 && p.lead_time_days <= 365
+    && Number.isInteger(p.shelf_life_days) && p.shelf_life_days >= 1 && p.shelf_life_days <= 3650;
+  if (!valid) return { d, stock, D: null, H: null, eoq: null, cap: 0, integerCap: 0, roundedEOQ: 0, qty: 0, limited: false,
+    sigma: null, z: null, safety: null, rop: null, days: 999, orderDate: null, arrivalDate: null, status: 'orange',
+    window: { available: false, rows: [], shelfDemand: null, arrivalStock: null, competingSales: null },
+    reason: 'invalid_inputs', review: true, canOrder: false, dueToday: false, riskAvailable: false, projectionMode: opts.inventory ? 'lots' : 'aggregate' };
+  const riskAvailable = Number.isFinite(fc.metrics.rmse) && fc.metrics.rmse >= 0 && (fc.metrics.samples === undefined || fc.metrics.samples >= 2);
+  const sigma = riskAvailable ? fc.metrics.rmse : null;
   const z = Calc.Z[opts.serviceLevel];
   const D = d * 365;                                // ความต้องการต่อปี
   const H = p.cost * opts.holdRate;                 // ต้นทุนเก็บรักษาต่อชิ้นต่อปี
   const eoq = Math.sqrt(2 * D * p.order_cost / H);  // EOQ = √(2DS ÷ H)
 
-  // ถ้า EOQ มากกว่าที่ขายได้ทันในอายุสินค้า ให้จำกัดที่ d × shelf_life (ปัดลง)
-  const cap = d * p.shelf_life_days;
-  const limited = eoq > cap;
-  const qty = limited ? Math.floor(cap) : Math.round(eoq);
+  const safety = riskAvailable ? z * sigma * Math.sqrt(p.lead_time_days) : null;
+  const rop = riskAvailable ? d * p.lead_time_days + safety : null;
+  let window = { available: true, days: 999, arrivalOffset: null, arrivalStock: stock, competingSales: 0, shelfDemand: 0, cap: 0, rows: [] };
+  if (d > 0 && opts.inventory) {
+    window = Calc.orderWindow(opts.inventory, d, opts.pending || !riskAvailable ? Infinity : rop, p.lead_time_days, p.shelf_life_days, opts.trace);
+  } else if (d > 0) {
+    // Aggregate fallback has no expiry evidence: conservatively reserve residual stock.
+    const days = riskAvailable ? Math.max(0, Math.ceil((stock - rop) / d)) : 0;
+    const arrivalOffset = days + p.lead_time_days;
+    const arrivalStock = Math.max(0, stock - d * arrivalOffset);
+    const shelfDemand = d * p.shelf_life_days;
+    window = { available: true, days, arrivalOffset, arrivalStock, shelfDemand, competingSales: Math.min(shelfDemand, arrivalStock), cap: Math.max(0, shelfDemand - arrivalStock), rows: [] };
+  }
+  const { cap = 0, days = 999 } = window;
+  const roundedEOQ = Math.max(0, Math.round(eoq));
+  const integerCap = Math.max(0, Math.floor(cap));
+  const qty = Math.min(roundedEOQ, integerCap);
+  const limited = qty < roundedEOQ;
+  const reason = opts.pending ? 'pending' : d <= 0 ? 'no_demand' : !riskAvailable ? 'insufficient_errors' : !window.available ? 'projection_horizon'
+    : cap <= 0 ? 'stock_covers_window' : integerCap < 1 ? 'below_unit_cap' : roundedEOQ < 1 ? 'below_unit_eoq' : 'ready';
+  const review = ['below_unit_cap', 'below_unit_eoq', 'insufficient_errors', 'projection_horizon'].includes(reason);
+  const canOrder = reason === 'ready' && qty > 0 && days === 0;
+  const dueToday = canOrder;
+  const status = review || reason === 'stock_covers_window' ? 'orange' : dueToday ? 'red' : days <= 3 && reason === 'ready' ? 'orange' : 'green';
+  const orderDate = opts.today && d > 0 && window.available ? Calc.addDays(opts.today, days) : null;
+  const arrivalDate = opts.today && window.arrivalOffset !== null && window.available ? Calc.addDays(opts.today, window.arrivalOffset) : null;
+  return { d, sigma, z, D, H, eoq, cap, integerCap, roundedEOQ, limited, qty, safety, rop, stock, days, status, orderDate, arrivalDate,
+    window, riskAvailable, reason, review, canOrder, dueToday, projectionMode: opts.inventory ? 'lots' : 'aggregate' };
+};
 
-  const safety = z * sigma * Math.sqrt(p.lead_time_days);   // Safety Stock = z × σ × √L
-  const rop = d * p.lead_time_days + safety;                // ROP = d × L + Safety Stock
-
-  // วันที่สต็อกถึงหรือต่ำกว่า ROP เมื่อทบทวนก่อนขายทุกวัน
-  const days = d > 0 ? Math.max(0, Math.ceil((stock - rop) / d)) : 999;
-  const status = days <= 0 ? 'red' : days <= 3 ? 'orange' : 'green';
-  const orderDate = opts.today ? Calc.addDays(opts.today, Math.max(days, 0)) : null;
-  return { d, sigma, z, D, H, eoq, cap, limited, qty, safety, rop, stock, days, status, orderDate };
+Calc.orderLabel = function (plan) {
+  const reasons = { pending: 'รอรับสินค้า', no_demand: 'ไม่มีความต้องการที่พยากรณ์', insufficient_errors: 'ข้อมูลคลาดเคลื่อนยังไม่พอ', projection_horizon: 'ควรทบทวนระยะวางแผน',
+    stock_covers_window: 'สต็อกเดิมครอบคลุมช่วงขาย', below_unit_cap: 'เพดานขายทันต่ำกว่า 1 ชิ้น', below_unit_eoq: 'EOQ ปัดได้ต่ำกว่า 1 ชิ้น', invalid_inputs: 'ตรวจข้อมูลต้นทุนหรือแผนสั่งซื้อ' };
+  return reasons[plan.reason] || (plan.dueToday ? 'ควรสั่งวันนี้' : `สั่งใน ${plan.days} วัน`);
 };
 
 // Auditable calculation steps use exactly the same forecast, interval and EOQ as the dashboard.
@@ -194,7 +271,7 @@ Calc.calculationDetails = function (data, product, settings) {
   const parameter = settings.method === 'es' ? settings.alpha : settings.n;
   const forecast = Calc.forecast(series, settings.method, parameter);
   const confidence = Calc.forecastConfidence(series, forecast, settings.confidenceLevel || .95);
-  const plan = Calc.plan(product, forecast, Calc.stockByProduct(data)[product.id], { ...settings, today: data.today });
+  const plan = Calc.planFor(data, product, forecast, settings, true);
   const rows = series.map((actual, index) => {
     const predicted = forecast.fitted[index];
     const error = predicted === null ? null : actual - predicted;
@@ -480,11 +557,14 @@ Calc.evaluatePolicies = function (product, series, settings, options = {}) {
       const received = arrivals.reduce((s, o) => s + o.qty, 0);
       const stock = lots.reduce((s, l) => s + l.qty, 0);
       const fc = Calc.forecast(series.slice(0, t), selected.method, selected.param);
-      const plan = Calc.plan(product, fc, stock, settings);
-      const position = stock + pending.reduce((s, o) => s + o.qty, 0);
+      const inventory = [
+        ...lots.map(l => ({ qty: l.qty, arrivesIn: 0, expiresIn: l.expiry - t })),
+        ...pending.map(o => ({ qty: o.qty, arrivesIn: o.arrive - t, expiresIn: o.arrive + product.shelf_life_days - t }))
+      ];
+      const plan = Calc.plan(product, fc, stock, { ...settings, inventory, pending: pending.length > 0 });
       const qty = policy === 'fixed'
         ? ((t - testStart) % interval === 0 ? fixedQty : 0)
-        : (!pending.length && position <= plan.rop ? plan.qty : 0);
+        : (plan.dueToday ? plan.qty : 0);
       if (qty > 0) {
         pending.push({ arrive: t + product.lead_time_days, qty });
         result.orders++; result.orderedUnits += qty; result.orderCost += product.order_cost;
@@ -512,12 +592,10 @@ Calc.evaluatePolicies = function (product, series, settings, options = {}) {
 };
 
 Calc.orderExplanation = function (p, fc, plan, pending) {
-  const n = v => Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
-  const timing = plan.d <= 0 ? 'ไม่มีความต้องการที่พยากรณ์ จึงไม่แนะนำสั่ง'
-    : pending ? `มีใบสั่งซื้อรอรับ ${pending.qty} หน่วย ถึง ${pending.expected_date} จึงไม่สั่งซ้ำ`
-    : plan.stock <= plan.rop ? `ควรสั่งวันนี้ เพราะสต็อกใช้ได้ ${n(plan.stock)} ถึงจุดสั่งซื้อแล้ว`
-    : `สต็อกใช้ได้ ${n(plan.stock)} ยังสูงกว่าจุดสั่งซื้อ คาดถึงเกณฑ์ใน ${plan.days} วัน`;
-  return `${timing} · จุดสั่งซื้อ (ROP) ${n(plan.rop)} · สต็อกสำรอง (Safety Stock) ${n(plan.safety)} · ${Calc.modelLabel(fc.method, fc.param)} พยากรณ์ ${n(fc.d)} ${p.unit}/วัน · RMSE ทั้งช่วง ${fc.metrics.rmse === null ? 'ยังไม่มีข้อมูล' : n(fc.metrics.rmse)} · EOQ ${n(plan.eoq)}${plan.limited ? ` จำกัดที่ยอดขาย × อายุ ${p.shelf_life_days} วัน` : ''} → ${plan.qty} ${p.unit}/ครั้ง · ไม่รวมล็อตหมดอายุหรือยังไม่รับเข้า · จำนวนสั่งเป็นแนวทาง ไม่รับประกันว่าจะขายหมด`;
+  const n = v => Number.isFinite(v) ? Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 }) : '—';
+  const timing = pending ? `มีใบสั่งรอรับ ${pending.qty} หน่วย ถึง ${pending.expected_date} จึงไม่สั่งซ้ำ` : Calc.orderLabel(plan);
+  const review = plan.review ? ' · ควรทบทวนหน่วยขาย/ความถี่สั่งหรือข้อมูลก่อนเลือกจำนวนเอง ไม่ปัดขึ้นเป็น 1 ชิ้นอัตโนมัติ' : '';
+  return `${timing}${review} · จุดสั่งซื้อ (ROP) ${n(plan.rop)} · สต็อกสำรอง (Safety Stock) ${n(plan.safety)} · ${Calc.modelLabel(fc.method, fc.param)} ใช้ d=${n(fc.d)} ${p.unit}/วันคงที่ในแผน · RMSE ${n(fc.metrics.rmse)} · EOQ ตามสูตร ${n(plan.eoq)} · วันรับที่ใช้คำนวณ ${plan.arrivalDate || '—'} ล็อตเดิมคาดเหลือ ${n(plan.window.arrivalStock)} · ยอดช่วงอายุ ${n(plan.window.shelfDemand)} หักยอดที่ล็อตเดิมใช้ก่อน ${n(plan.window.competingSales)} → เพดาน ${n(plan.cap)} (ปัดลง ${plan.integerCap}) · จำนวนแนะนำ min(round(EOQ), floor(เพดาน)) = ${plan.qty} ${p.unit}/ครั้ง · ${plan.projectionMode === 'lots' ? 'จำลองล็อตและใบสั่งยืนยันแบบ FEFO' : 'ไม่มีรายละเอียดล็อต สมมติสต็อกเดิมยังใช้ได้และขายก่อน'} · เป็นค่าประมาณ ไม่รับประกันขายหมด`;
 };
 
 if (typeof module !== 'undefined') module.exports = Calc;
