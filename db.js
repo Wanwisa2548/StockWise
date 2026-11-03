@@ -15,4 +15,7 @@ const config = {
 };
 
 const poolPromise = new sql.ConnectionPool(config).connect();
+// Keep the HTTP server available to report a connection failure through the API.
+// This handler does not replace the rejected promise or inject demo data.
+poolPromise.catch(err => console.error('เชื่อมต่อ SQL Server ไม่สำเร็จ:', err.code || 'CONNECTION_ERROR'));
 module.exports = { sql, poolPromise };

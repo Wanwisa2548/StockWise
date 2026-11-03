@@ -14,7 +14,9 @@ const App = {
     { key: 'order',    label: 'วางแผนจัดซื้อ', icon: 'order', badge: true },
     { key: 'expiry',   label: 'จัดการของใกล้หมดอายุ', icon: 'expiry', badge: true },
     { key: 'cluster',  label: 'จัดกลุ่มสินค้า', icon: 'cluster' },
-    { key: 'manage',   label: 'สินค้าและสต็อก', icon: 'manage' }
+    { key: 'manage',   label: 'สินค้าและสต็อก', icon: 'manage' },
+    { key: 'evaluation', label: 'ประเมินผล DSS', icon: 'forecast' },
+    { key: 'presentation', label: 'สไลด์และ Demo', icon: 'receipt' }
   ],
   current: 'overview',
 
@@ -73,6 +75,13 @@ const App = {
       clearTimeout(timeout);
     }
     this.data = json;
+    document.getElementById('data-source-banner')?.remove();
+    document.querySelector('.dataset-pill').innerHTML = json.source?.mode === 'demo' ? 'DEMO · SYNTHETIC DATA' : '<i></i> French Bakery Daily Sales';
+    if (json.source?.mode === 'demo') {
+      const banner = document.createElement('div'); banner.id = 'data-source-banner'; banner.className = 'dss-callout demo-banner';
+      banner.textContent = 'โหมด Demo · ข้อมูลจำลองสำหรับสาธิต ไม่ใช่ข้อมูล CSV จริง · ไม่เชื่อมต่อและไม่บันทึกฐานข้อมูล';
+      document.querySelector('.topbar').insertAdjacentElement('afterend', banner);
+    }
     this.updateBadges();
   },
 
@@ -177,6 +186,9 @@ const App = {
     const page = Pages[key];
     if (page) page.render(root);
     else root.innerHTML = '<div class="card muted">หน้านี้กำลังพัฒนา</div>';
+    if (this.data.source?.readOnly) {
+      root.querySelectorAll('#f-save,#c-save,[data-po],[data-recv],[data-cancel],[data-del-po],[data-promo-lot],[data-del-promo],[data-save-product],[data-save-lot],[data-del-lot],#m-add-btn').forEach(button => { button.disabled = true; button.title = 'Demo ใช้ข้อมูลจำลองและไม่บันทึกฐานข้อมูล'; });
+    }
     if (this.data) this.updateBadges();
     window.scrollTo(0, 0);
   },

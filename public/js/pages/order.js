@@ -3,7 +3,7 @@ Pages.order = {
   render(root) {
     const d = App.data, S = App.settings;
     if (App.selProduct === null) App.selProduct = d.products[0].id;
-    const methodName = S.method === 'ma' ? `Moving Average n=${S.n}` : `Exponential Smoothing α=${S.alpha.toFixed(2)}`;
+    const methodName = `${Calc.modelLabel(S.method, S.method === 'es' ? S.alpha : S.n)} เป็นค่าเริ่มต้น พร้อมโมเดลรายสินค้าที่ผู้ใช้เลือก`;
 
     root.innerHTML = `
       ${BakeryVisuals.heading('order', 'วางแผนจัดซื้อรอบถัดไป', `วางแผนจำนวนสั่งซื้อให้สัมพันธ์กับยอดขายและอายุสินค้า · ใช้ค่าพยากรณ์ ${methodName}`)}
@@ -29,7 +29,8 @@ Pages.order = {
       <div class="card formula">
         d = ค่าพยากรณ์ยอดขายต่อวัน, σ = RMSE, D = d × 365, H = ราคาทุน × อัตราเก็บรักษา<br>
         EOQ = √(2DS ÷ H) โดย S = ค่าสั่งซื้อต่อครั้ง · ถ้า EOQ &gt; d × อายุสินค้า จะจำกัดจำนวนสั่งที่ d × อายุสินค้า (ปัดลง)<br>
-        Safety Stock = z × σ × √L · ROP = d × L + Safety Stock · วันก่อนต้องสั่ง = floor((สต็อก − ROP) ÷ d)
+        Safety Stock = z × σ × √L · ROP = d × L + Safety Stock · วันก่อนต้องสั่ง = max(0, ceil((สต็อกใช้ได้ − ROP) ÷ d))<br>
+        สมมติ Lead Time คงที่ ความคลาดเคลื่อนรายวันเป็นอิสระโดยประมาณ · ไม่ใช่โมเดลผลิตขนม · การจำกัดจำนวนด้วยอายุสินค้ายังไม่หักสต็อกที่อาจเหลือตอนรับเข้า
       </div>`;
 
     const $ = id => root.querySelector(id);
@@ -51,7 +52,7 @@ Pages.order = {
       // เรียงตามความเร่งด่วน (จำนวนวันก่อนต้องสั่งน้อยสุดขึ้นก่อน)
       const rows = plans.slice().sort((a, b) => a.pl.days - b.pl.days).map(({ p, pl }) => `
         <tr class="${pl.status === 'red' ? 'row-red' : ''}">
-          <td>${BakeryVisuals.productCell(p)}</td>
+          <td>${BakeryVisuals.productCell(p)}<details class="dss-reason"><summary>เหตุผลและโมเดล</summary><p>${App.esc(Calc.orderExplanation(p, fcs[p.id], pl, App.pendingOrder(p.id)))}</p></details></td>
           <td>${App.fmt(pl.d, 1)}</td><td>${App.fmt(pl.eoq)}</td>
           <td><b>${App.fmt(pl.qty)}</b> ${App.esc(p.unit)}${pl.limited ? ' <span class="badge blue">จำกัดอายุ</span>' : ''}</td>
           <td>${App.fmt(pl.safety, 1)}</td><td>${App.fmt(pl.rop, 1)}</td><td>${App.fmt(pl.stock)}</td>
@@ -59,7 +60,7 @@ Pages.order = {
           <td><span class="badge ${pl.status}">${label[pl.status]}</span></td>
           <td>${(() => { const po = App.pendingOrder(p.id);
             return po ? `<span class="badge blue">สั่งแล้ว · ถึง ${App.shortDate(po.expected_date)}</span>`
-                      : `<button type="button" class="btn go ${pl.status === 'red' ? '' : 'secondary'}" data-po="${p.id}" data-qty="${pl.qty}">สั่งซื้อ ${App.fmt(pl.qty)}</button>`; })()}</td>
+                      : pl.qty <= 0 ? '<span class="muted">ไม่แนะนำสั่ง</span>' : `<button type="button" class="btn go ${pl.status === 'red' ? '' : 'secondary'}" data-po="${p.id}" data-qty="${pl.qty}">สั่งซื้อ ${App.fmt(pl.qty)}</button>`; })()}</td>
         </tr>`).join('');
       $('#o-table').innerHTML = `<table><thead><tr>
         <th>สินค้า</th><th>ขาย/วัน (d)</th><th>EOQ</th><th>จำนวนสั่ง</th><th>Safety Stock</th><th>ROP</th><th>สต็อก</th><th>ควรสั่งเมื่อ</th><th>สถานะ</th><th></th>
@@ -89,10 +90,10 @@ Pages.order = {
           { name: `Safety Stock (${App.fmt(pl.safety, 1)})`, color: 'var(--crit)', dash: '2 3', values: flat(pl.safety) }
         ]
       });
-      $('#o-orders').innerHTML = sim.orders.length
+      $('#o-orders').innerHTML = '<p>ภาพจำลองจังหวะสั่งด้วยยอดขายคงที่ ไม่คิดการหมดอายุหรือใบสั่งซื้อจริงที่รอรับ ดูการทดลองที่คิดล็อตและยอดขายย้อนหลังได้ในหน้า “ประเมินผล DSS”</p>' + (sim.orders.length
         ? 'จังหวะสั่งซื้อในช่วง 30 วัน: ' + sim.orders.map(o =>
             `สั่ง ${App.fmt(o.qty)} ${App.esc(cur.p.unit)} วันที่ ${App.shortDate(App.addDays(d.today, o.day))} (ถึง ${App.shortDate(App.addDays(d.today, o.arrive))})`).join(' · ')
-        : 'ไม่ต้องสั่งซื้อภายใน 30 วัน';
+        : 'ไม่ต้องสั่งซื้อภายใน 30 วัน');
     }
     update();
 

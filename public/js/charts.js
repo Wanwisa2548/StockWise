@@ -119,7 +119,7 @@ Charts.heatmap = function ({ rowLabels, colLabels, matrix, width = 760, fmt = v 
 // กราฟกระจาย (แกนเป็น log) — points = [{ x, y, label, color }], centers = [{ x, y, color }]
 Charts.scatterLog = function ({ points, centers = [], xLabel, yLabel, height = 340, width = 760 }) {
   const W = width, H = height, m = { l: 52, r: 16, t: 14, b: 40 };
-  const lg = Math.log10;
+  const lg = v => Math.log10(Math.max(v, .001));
   const xs = points.map(p => lg(p.x)), ys = points.map(p => lg(p.y));
   const ext = (v, pad) => [Math.min(...v) - pad, Math.max(...v) + pad];
   const [x0, x1n] = ext(xs, 0.25), [y0, y1] = ext(ys, 0.25), x1 = x1n + 0.3;

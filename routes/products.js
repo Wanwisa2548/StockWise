@@ -2,18 +2,19 @@
 const express = require('express');
 const { sql, poolPromise } = require('../db');
 const { HttpError, num, handle } = require('./util');
+const { SIM_TODAY } = require('../config');
 
 const router = express.Router();
 
 // ดึงสินค้าพร้อมสต็อกคงเหลือ
 router.get('/products', handle(async (req, res) => {
   const pool = await poolPromise;
-  const r = await pool.request().query(`
+  const r = await pool.request().input('today', sql.Date, SIM_TODAY).query(`
     SELECT p.id, p.sku, p.name, p.unit, p.cost, p.price,
            p.order_cost, p.lead_time_days, p.shelf_life_days,
            ISNULL(SUM(l.qty_remaining), 0) AS stock
     FROM products p
-    LEFT JOIN inventory_lots l ON l.product_id = p.id
+    LEFT JOIN inventory_lots l ON l.product_id = p.id AND l.expiry_date > @today AND l.received_date <= @today
     GROUP BY p.id, p.sku, p.name, p.unit, p.cost, p.price,
              p.order_cost, p.lead_time_days, p.shelf_life_days
     ORDER BY p.id`);

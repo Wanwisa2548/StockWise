@@ -5,11 +5,14 @@ const CalculationDetails = {
 
   html(trace, sourceNote = 'ข้อมูลยอดขายและค่าต้นทุนจากฐานข้อมูลที่โหลดบนหน้านี้') {
     const t = trace, p = t.product, s = t.settings, fc = t.forecast, ci = t.confidence, pl = t.plan;
+    if (t.source?.mode === 'demo') sourceNote = 'DEMO · ข้อมูลจำลอง ไม่ใช่ Bakery sales.csv · ' + sourceNote;
     const e = this.esc, n = this.num;
     const formula = (label, substitution, result) => `<div class="worked-equation"><span>${e(label)}</span><code>${e(substitution)}</code><strong>${e(result)}</strong></div>`;
     const miniTable = (headers, rows) => `<div class="table-wrap"><table><thead><tr>${headers.map(h => `<th>${e(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(value => `<td>${e(value)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
     const level = n(ci.level * 100, 0);
-    const forecastSteps = s.method === 'ma'
+    const forecastSteps = ['naive', 'seasonal'].includes(s.method)
+      ? formula(Calc.modelLabel(s.method, fc.param), s.method === 'naive' ? 'd = ยอดขายวันล่าสุด' : 'd = ยอดขายวันเดียวกันเมื่อ 7 วันก่อน', `${n(fc.d)} ${p.unit}/วัน`)
+      : s.method === 'ma'
       ? `${miniTable(['วันที่', `ยอดขาย (${p.unit})`], t.recentRows.map(r => [r.date, n(r.actual)]))}
           ${formula('Moving Average: d = ผลรวมยอดขาย n วัน ÷ n', `d = (${t.recentRows.map(r => n(r.actual)).join(' + ')}) ÷ ${s.n}`, `${n(t.recentSum)} ÷ ${s.n} = ${n(fc.d)} ${p.unit}/วัน`)}
           <p class="worked-note">ใช้ยอดรายวัน ${s.n} วันล่าสุดจากช่วงข้อมูลที่โหลด ไม่ใช้รายการขายรายบิลมาเฉลี่ยโดยตรง</p>`
@@ -18,7 +21,7 @@ const CalculationDetails = {
           ${t.smoothing.length ? formula('แทนค่าขั้นสุดท้าย', `${n(s.alpha)} × ${n(t.smoothing.at(-1).actual)} + ${n(1 - s.alpha)} × ${n(t.smoothing.at(-1).previousLevel)}`, `${n(t.smoothing.at(-1).actualPart)} + ${n(t.smoothing.at(-1).previousPart)} = ${n(fc.d)} ${p.unit}/วัน`) : ''}`;
     const coverageExample = ci.backtest.checks[0];
     return `<article class="worked-calculations">
-      <header class="worked-heading"><div><span class="module-eyebrow">SHOW YOUR WORK</span><h3>วิธีคำนวณ: ${e(p.name)}</h3><p>${e(sourceNote)}</p><p>ช่วงข้อมูล ${e(t.dates[0])} ถึง ${e(t.dates.at(-1))} · วันวางแผน ${e(t.today)} · ${s.method === 'ma' ? 'Moving Average ' + s.n + ' วัน' : 'Exponential Smoothing α = ' + n(s.alpha)}</p></div></header>
+      <header class="worked-heading"><div><span class="module-eyebrow">SHOW YOUR WORK</span><h3>วิธีคำนวณ: ${e(p.name)}</h3><p>${e(sourceNote)}</p><p>ช่วงข้อมูล ${e(t.dates[0])} ถึง ${e(t.dates.at(-1))} · วันวางแผน ${e(t.today)} · ${e(Calc.modelLabel(fc.method, fc.param))}</p></div></header>
       <p class="worked-note">ตัวเลขที่แทนค่าแสดงไม่เกิน 6 ตำแหน่งทศนิยม ระบบเก็บความละเอียดเต็มระหว่างคำนวณ ใช้ ≈ เมื่อตรวจด้วยเครื่องคิดเลขจากตัวเลขที่แสดง</p>
       <section class="worked-step" id="worked-inputs"><h4><span>01</span>ค่าตั้งต้นและที่มาของข้อมูล</h4>
         ${miniTable(['ตัวแปร', 'ความหมาย', 'ค่าที่ใช้', 'ที่มา'], [

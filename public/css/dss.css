@@ -1,0 +1,34 @@
+.dss-note { color: var(--ink-2); font-size: 12px; line-height: 1.8; margin: 12px 0; white-space: normal; }
+.dss-callout.demo-banner { margin: 16px var(--gutter) 0; background: var(--warn-soft); border-color: var(--warn); }
+.dss-callout { padding: 16px; background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 6px; margin: 14px 0; line-height: 1.9; }
+.dss-callout .row-actions { margin-top: 12px; flex-wrap: wrap; }
+.dss-inputs { align-items: flex-end; margin: 16px 0; flex-wrap: wrap; }
+.dss-inputs input { width: 165px; padding: 9px; border: 1px solid var(--line-strong); border-radius: 5px; background: white; }
+.dss-reason { margin-top: 8px; width: 260px; font-size: 12px; white-space: normal; }
+.dss-reason summary { color: var(--accent); cursor: pointer; }
+.dss-reason p { margin: 8px 0; line-height: 1.9; }
+.dss-presentation { display: grid; gap: 22px; }
+.dss-slide { background: var(--surface); padding: clamp(24px, 4vw, 52px); border: 1px solid var(--line); border-radius: 12px; line-height: 1.9; }
+.dss-slide h2 { margin: 10px 0 20px; }
+.dss-slide h3 { margin: 14px 0 6px; }
+.dss-slide ul,.dss-slide ol { padding-left: 24px; }
+.dss-slide li { margin: 8px 0; }
+.dss-slide table { font-size: 12px; }
+.dss-summary table { table-layout: fixed; width: 100%; }
+.dss-summary th,.dss-summary td { white-space: normal; overflow-wrap: anywhere; }
+.dss-summary th:first-child { width: 50%; }
+@media (max-width: 600px) { .dss-summary th,.dss-summary td { padding: 10px 5px; font-size: 11px; } }
+.dss-flow { display: flex; gap: 12px; flex-wrap: wrap; padding: 20px 0; }
+.dss-flow span { background: var(--accent-soft); border-radius: 8px; padding: 12px 18px; }
+.dss-slide .module-eyebrow { letter-spacing: 1px; }
+@media print {
+  body:has(.dss-presentation) .sidebar,body:has(.dss-presentation) .topbar,body:has(.dss-presentation) .app-footer,body:has(.dss-presentation) .dss-toolbar,body:has(.dss-presentation) .skip-link,body:has(.dss-presentation) #toast,body:has(.dss-presentation) .demo-banner { display: none !important; }
+  body:has(.dss-presentation) .app-shell { margin: 0; }
+  body:has(.dss-presentation) .page { padding: 0; }
+  .dss-presentation { display: block; }
+  .dss-slide { break-after: page; border: 0; padding: 12mm; border-radius: 0; font-size: 11pt; }
+  .dss-slide:last-child { break-after: auto; }
+  .dss-slide h2 { font-size: 22pt; }
+  .dss-slide .table-wrap { overflow: visible; }
+  .dss-slide th,.dss-slide td { padding: 4px 8px; }
+}

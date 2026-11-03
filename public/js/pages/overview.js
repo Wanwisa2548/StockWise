@@ -46,7 +46,7 @@ Pages.overview = {
     const shortName = p => p.name.replace(/\s*\([^)]*\)\s*/g, '').trim();
     const englishName = p => (p.name.match(/\(([^)]+)\)/) || [null, p.name])[1];
     const fullRange = `${App.shortDate(dates[0])} – ${App.thaiDate(dates[dates.length - 1])}`;
-    const forecastLabel = settings.method === 'ma' ? `Moving Average · ${settings.n} วัน` : `Exponential Smoothing · α ${fmt(settings.alpha, 2)}`;
+    const forecastLabel = `${Calc.modelLabel(settings.method, settings.method === 'es' ? settings.alpha : settings.n)} · เลือกโมเดลเฉพาะสินค้า ${Object.keys(settings.modelChoices || {}).length} รายการ`;
     const confidenceLevel = settings.confidenceLevel || 0.95;
     const confidenceLabel = fmt(confidenceLevel * 100) + '%';
     const selectedPlan = plans.find(x => x.p.id === App.selProduct) || topForecast;
@@ -88,7 +88,7 @@ Pages.overview = {
           <section class="card eoq-card" aria-labelledby="eoq-heading"><div class="section-head"><div><h3 id="eoq-heading">จำนวนสั่งซื้อที่เหมาะสม (EOQ)</h3><p class="section-caption">${esc(englishName(selectedProduct))} · ${selected.limited ? 'ปรับจำนวนตามอายุสินค้า' : 'ใช้จำนวนตามสูตร EOQ'}</p></div><span class="planning-icon wheat">${icon('order')}</span></div>
             <div class="eoq-values"><div><span>EOQ ตามสูตร</span><strong id="dashboard-eoq">${fmt(selected.eoq, 1)}</strong><small>${esc(selectedProduct.unit)} / ครั้ง</small></div><div><span>จำนวนแนะนำสั่งจริง</span><strong id="dashboard-order-qty">${fmt(selected.qty)}</strong><small>${esc(selectedProduct.unit)} / ครั้ง ${selected.limited ? '<span class="badge orange">จำกัดอายุสินค้า</span>' : ''}</small></div></div>
             <dl class="eoq-inputs"><div><dt>D · ความต้องการ / ปี</dt><dd>${fmt(selected.D, 1)} ${esc(selectedProduct.unit)}</dd></div><div><dt>S · ค่าสั่งซื้อ / ครั้ง</dt><dd>${money(selectedProduct.order_cost)}</dd></div><div><dt>H · ค่าเก็บ / หน่วย / ปี</dt><dd>${money(selected.H, 4)}</dd></div><div><dt>อายุสินค้า / Lead time</dt><dd>${selectedProduct.shelf_life_days} / ${selectedProduct.lead_time_days} วัน</dd></div></dl>
-            <p class="interval-disclaimer">EOQ = √(2DS/H) · D = พยากรณ์รายวัน × 365 · H = ต้นทุน ${money(selectedProduct.cost)} × อัตราเก็บ ${fmt(settings.holdRate * 100)}%/ปี</p>
+            <p class="interval-disclaimer">EOQ = √(2DS/H) · D = พยากรณ์รายวัน × 365 · H = ต้นทุน ${money(selectedProduct.cost)} × อัตราเก็บ ${fmt(settings.holdRate * 100)}%/ปี</p><p class="dss-note">${esc(Calc.orderExplanation(selectedProduct, fcs[selectedProduct.id], selected, App.pendingOrder(selectedProduct.id)))}</p>
             <button type="button" class="text-button" data-go="order">ดู Safety Stock, ROP และปรับอัตราเก็บ ${icon('arrow')}</button>
             <button type="button" class="text-button" data-calculation="eoq">${icon('receipt')}ดูการแทนค่า EOQ ทีละขั้น ${icon('arrow')}</button>
           </section>
@@ -159,7 +159,7 @@ Pages.overview = {
       const csv = [['product_id', 'product', 'unit', 'history_start', 'history_end', 'planning_date', 'method', 'parameter', 'forecast_per_day', 'confidence_level', 'prediction_lower_next_day', 'prediction_upper_next_day', 'rmse', 'backtest_samples', 'coverage_hits', 'coverage_tested', 'coverage_rate', 'annual_demand', 'unit_cost_eur', 'order_cost_eur', 'holding_rate', 'holding_cost_eur_per_unit_year', 'eoq', 'shelf_life_days', 'lead_time_days', 'recommended_quantity', 'service_level', 'safety_stock', 'reorder_point', 'stock']];
       plans.forEach(({ p, pl }) => {
         const ci = Calc.forecastConfidence(d.dailySales[p.id], fcs[p.id], confidenceLevel);
-        csv.push([p.id, p.name, p.unit, d.dates[0], d.dates.at(-1), d.today, settings.method, settings.method === 'es' ? settings.alpha : settings.n, round(pl.d), confidenceLevel, round(ci.lo), round(ci.hi), round(ci.rmse), ci.samples, ci.backtest.hits, ci.backtest.tested, round(ci.backtest.coverage), round(pl.D), p.cost, p.order_cost, settings.holdRate, round(pl.H), round(pl.eoq), p.shelf_life_days, p.lead_time_days, pl.qty, settings.serviceLevel, round(pl.safety), round(pl.rop), pl.stock]);
+        csv.push([p.id, p.name, p.unit, d.dates[0], d.dates.at(-1), d.today, fcs[p.id].method, fcs[p.id].param, round(pl.d), confidenceLevel, round(ci.lo), round(ci.hi), round(ci.rmse), ci.samples, ci.backtest.hits, ci.backtest.tested, round(ci.backtest.coverage), round(pl.D), p.cost, p.order_cost, settings.holdRate, round(pl.H), round(pl.eoq), p.shelf_life_days, p.lead_time_days, pl.qty, settings.serviceLevel, round(pl.safety), round(pl.rop), pl.stock]);
       });
       App.downloadCSV(`stockwise-confidence-eoq-${d.today}.csv`, csv);
       App.toast('ส่งออก Confidence และ EOQ จากข้อมูลปัจจุบันแล้ว');

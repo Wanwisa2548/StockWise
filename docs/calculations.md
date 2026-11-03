@@ -1,5 +1,7 @@
 # Dashboard Confidence and EOQ
 
+Current DSS additions and evaluation design: [dss-methodology.md](dss-methodology.md). The UI now supports explicit per-product model choices, shared-date validation/test comparison, retrospective FEFO inventory policy experiments, silhouette and printable slides. `npm run demo` is an explicit synthetic, read-only mode; it never substitutes for a failed production database connection. Historical audit numbers below are not results of a fresh query.
+
 ## Data used
 
 The dashboard reads the configured SQL Server through `/api/data`. It does not generate replacement sales or seed the shared database. Sales come from the imported database's `daily_sales` view and `sales_transactions` table within the 56-day analysis window ending before `SIM_TODAY`. Days with no sales rows are filled with zero, consistently with the existing forecasting flow.
@@ -19,7 +21,7 @@ Costs, ordering costs, shelf life and lead time come from the database's `produc
 - The nominal confidence level is user-selected. It is not a measured forecast accuracy score.
 - Measured coverage is computed chronologically: each backtest day uses RMSE from **earlier** errors only, after at least 14 prior errors. The tested day's error is added afterward. The UI reports hits / tested days and their percentage.
 - The interval is approximate under normal, stable error assumptions. It is explicitly limited to the next day; the 14-day chart does not reuse it as a guaranteed interval for all future days.
-- Aggregate store intervals are calculated from the summed daily sales series, preserving cross-product error correlations.
+- Aggregate store intervals use the sum of selected per-product forecasts and residuals against the summed daily series, preserving cross-product error correlations even when models differ.
 - Prediction intervals use a separate confidence setting from the one-sided service levels used for safety stock and ROP.
 
 Reference: [Forecasting: Principles and Practice — Prediction intervals](https://otexts.com/fpp2/prediction-intervals.html).
