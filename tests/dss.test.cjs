@@ -108,3 +108,17 @@ test('clustering zero-demand products keeps coordinates finite with a small cata
   assert(r.pts.flat().every(Number.isFinite)); assert.equal(r.sseByK.length, 2);
   assert.equal(r.silhouette, null);
 });
+
+test('cluster names are unique and relative to this product set, not fixed minimart thresholds', () => {
+  const lives = [1, 2, 3, 1, 2, 3, 1, 2, 3, 7], demand = [166, 50, 42, 32, 28, 8, 7, 6, 7, 6];
+  const products = lives.map((life, i) => ({ ...product, id: i + 1, shelf_life_days: life }));
+  const fcs = Object.fromEntries(demand.map((d, i) => [i + 1, { d }]));
+  for (const k of [2, 3, 4, 5]) {
+    const r = Calc.clusterProducts({ products }, fcs, k);
+    const names = r.groups.map(g => g.name);
+    assert.equal(new Set(names).size, names.length, `k=${k}: ${names.join(' | ')}`);
+    r.groups.forEach(g => { assert.ok(g.policy, `policy for ${g.name}`); assert.doesNotMatch(g.name, /ของสดอายุสั้นมาก/); });
+  }
+  const r2 = Calc.clusterProducts({ products }, fcs, 2);
+  assert.match(r2.groups.find(g => g.members.some(p => p.id === 1)).name, /^ขายดี/);
+});

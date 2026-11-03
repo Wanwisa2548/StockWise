@@ -80,6 +80,13 @@ for (let i = 0; i < HIST; i++) {
   const ids = {};
   (await pool.request().query('SELECT id, sku FROM products')).recordset.forEach(x => { ids[x.sku] = x.id; });
 
+  // ป้องกันการลบยอดขายเบเกอรี่: seed นี้ใช้ได้เฉพาะฐานมินิมาร์ทเดิมที่มี SKU ครบทั้ง 10 ตัว
+  const missing = PRODUCTS.map(p => p.sku).filter(sku => !(sku in ids));
+  if (missing.length) {
+    console.error(`ยกเลิก: ฐานนี้ไม่ใช่ชุดมินิมาร์ทเดิม (ไม่พบ SKU ${missing.join(', ')}) จึงไม่ลบรายการขาย · ใช้ npm run demo หรือ scripts/import-bakery.js แทน`);
+    process.exit(1);
+  }
+
   await pool.request().query('DELETE FROM sales_transactions');
   const table = new sql.Table('sales_transactions');
   table.create = false;

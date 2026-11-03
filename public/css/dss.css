@@ -1,12 +1,12 @@
-.dss-note { color: var(--ink-2); font-size: 12px; line-height: 1.8; margin: 12px 0; white-space: normal; }
-.nav-section { font-size: 10px; color: var(--muted); padding: 22px 14px 4px; }
+.dss-note { color: var(--ink-2); font-size: 16px; line-height: 1.8; margin: 12px 0; white-space: normal; }
+.nav-section { font-size: 14.5px; color: var(--muted); padding: 22px 14px 4px; }
 .page details > summary { cursor: pointer; color: var(--accent); font-weight: 500; }
 .page details[open] > summary { margin-bottom: 18px; }
 .inline-details { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
 .inline-details > .controls,.inline-details > .grid { margin-top: 18px; }
 .dashboard-details > summary { padding: 16px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
 .dashboard-details[open] > summary { margin-bottom: 20px; }
-.cell-note { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; }
+.cell-note { display: block; color: var(--muted); font-size: 15px; margin-top: 4px; }
 @media (max-width: 760px) { .nav-section { display: none; } }
 .dss-callout.demo-banner { margin: 16px var(--gutter) 0; background: var(--warn-soft); border-color: var(--warn); }
 .dss-callout { padding: 16px; background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 6px; margin: 14px 0; line-height: 1.9; }
@@ -14,20 +14,20 @@
 .btn.model-in-use:disabled { opacity: 1; cursor: default; color: var(--accent); background: var(--accent-soft); border-color: var(--line-strong); }
 .dss-inputs { align-items: flex-end; margin: 16px 0; flex-wrap: wrap; }
 .dss-inputs input { width: 165px; padding: 9px; border: 1px solid var(--line-strong); border-radius: 5px; background: white; }
-.dss-reason { margin-top: 8px; width: 260px; font-size: 12px; white-space: normal; }
+.dss-reason { margin-top: 8px; width: 260px; font-size: 16px; white-space: normal; }
 .dss-reason summary { color: var(--accent); cursor: pointer; }
 .dss-reason p { margin: 8px 0; line-height: 1.9; }
 .dss-presentation { display: grid; gap: 22px; }
-.dss-slide { background: var(--surface); padding: clamp(24px, 4vw, 52px); border: 1px solid var(--line); border-radius: 12px; line-height: 1.9; }
+.dss-slide { background: var(--surface); padding: clamp(24px, 4vw, 52px); border: 1px solid var(--line); border-radius: 12px; line-height: 1.9; min-width: 0; max-width: 100%; overflow-x: auto; overflow-wrap: anywhere; }
 .dss-slide h2 { margin: 10px 0 20px; }
 .dss-slide h3 { margin: 14px 0 6px; }
 .dss-slide ul,.dss-slide ol { padding-left: 24px; }
 .dss-slide li { margin: 8px 0; }
-.dss-slide table { font-size: 12px; }
+.dss-slide table { font-size: 16px; }
 .dss-summary table { table-layout: fixed; width: 100%; }
 .dss-summary th,.dss-summary td { white-space: normal; overflow-wrap: anywhere; }
 .dss-summary th:first-child { width: 50%; }
-@media (max-width: 600px) { .dss-summary th,.dss-summary td { padding: 10px 5px; font-size: 11px; } }
+@media (max-width: 600px) { .dss-summary th,.dss-summary td { padding: 10px 5px; font-size: 15px; } }
 .dss-flow { display: flex; gap: 12px; flex-wrap: wrap; padding: 20px 0; }
 .dss-flow span { background: var(--accent-soft); border-radius: 8px; padding: 12px 18px; }
 .dss-slide .module-eyebrow { letter-spacing: 1px; }

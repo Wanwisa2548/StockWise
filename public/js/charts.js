@@ -110,7 +110,7 @@ Charts.heatmap = function ({ rowLabels, colLabels, matrix, width = 760, fmt = v 
       const a = v / max;                                  // ความเข้ม 0–1
       const pct = Math.round(8 + a * 92);
       g += `<rect x="${m.l + j * cw + 1}" y="${m.t + i * ch + 1}" width="${cw - 2}" height="${ch - 2}" rx="4" style="fill:color-mix(in srgb, var(--accent) ${pct}%, var(--surface))"><title>${Charts.esc(rowLabels[i] + ' ' + colLabels[j])}: ${fmt(v)}</title></rect>` +
-           `<text x="${m.l + j * cw + cw / 2}" y="${m.t + i * ch + ch / 2 + 4}" text-anchor="middle" style="fill:${a > 0.55 ? 'var(--accent-ink)' : 'var(--ink)'};font-size:10px">${Math.round(v)}</text>`;
+           `<text x="${m.l + j * cw + cw / 2}" y="${m.t + i * ch + ch / 2 + 4}" text-anchor="middle" style="fill:${a > 0.55 ? 'var(--accent-ink)' : 'var(--ink)'};font-size:14px">${Math.round(v)}</text>`;
     });
   });
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
@@ -138,9 +138,23 @@ Charts.scatterLog = function ({ points, centers = [], xLabel, yLabel, height = 3
   centers.forEach(c => {
     g += `<path d="M${px(c.x)},${py(c.y) - 9} l9,9 l-9,9 l-9,-9 z" style="fill:none;stroke:${c.color};stroke-width:2"><title>จุดศูนย์กลางกลุ่ม</title></path>`;
   });
-  points.forEach(p => {
-    g += `<circle cx="${px(p.x)}" cy="${py(p.y)}" r="6" style="fill:${p.color};stroke:var(--surface);stroke-width:1.5"><title>${Charts.esc(p.label)} — ${Charts.esc(xLabel)} ${p.x.toFixed(1)}, ${Charts.esc(yLabel)} ${p.y}</title></circle>` +
-         `<text x="${px(p.x) + 9}" y="${py(p.y) + 4}" style="fill:var(--ink)">${Charts.esc(p.label)}</text>`;
+  // วางชื่อจุดไม่ให้ทับกัน: ลองขวา ซ้าย บน ล่าง แล้วขยับลงทีละบรรทัด (ประมาณกว้าง 6.6 หน่วย/ตัวอักษร)
+  const boxes = points.map(p => ({ x0: px(p.x) - 7, x1: px(p.x) + 7, y0: py(p.y) - 7, y1: py(p.y) + 7 }));
+  const hit = b => b.x0 < m.l || b.x1 > W - m.r || b.y0 < m.t || b.y1 > H - m.b || boxes.some(o => b.x0 < o.x1 && b.x1 > o.x0 && b.y0 < o.y1 && b.y1 > o.y0);
+  const labels = points.map(p => {
+    const cx = px(p.x), cy = py(p.y), w = p.label.length * 6.6, h = 13;
+    const tries = [[cx + 9, cy + 4, 'start'], [cx - 9, cy + 4, 'end'], [cx, cy - 11, 'middle'], [cx, cy + 19, 'middle']];
+    for (let dy = 14; dy <= 56; dy += 14) tries.push([cx + 9, cy + 4 + dy, 'start'], [cx + 9, cy + 4 - dy, 'start']);
+    const box = ([x, y, a]) => { const x0 = a === 'start' ? x : a === 'end' ? x - w : x - w / 2; return { x0, x1: x0 + w, y0: y - h + 3, y1: y + 3 }; };
+    const pick = tries.find(t => !hit(box(t))) || tries.at(0);
+    boxes.push(box(pick));
+    return { x: pick.at(0), y: pick.at(1), anchor: pick.at(2), lead: pick !== tries.at(0) && Math.abs(pick.at(1) - cy - 4) > 14 };
+  });
+  points.forEach((p, i) => {
+    const L = labels.at(i), cx = px(p.x), cy = py(p.y);
+    g += `<circle cx="${cx}" cy="${cy}" r="6" style="fill:${p.color};stroke:var(--surface);stroke-width:1.5"><title>${Charts.esc(p.label)} — ${Charts.esc(xLabel)} ${p.x.toFixed(1)}, ${Charts.esc(yLabel)} ${p.y}</title></circle>` +
+         (L.lead ? `<line x1="${cx + 5}" y1="${cy}" x2="${L.x - 2}" y2="${L.y - 4}" style="stroke:var(--muted);stroke-width:.75"/>` : '') +
+         `<text x="${L.x}" y="${L.y}" text-anchor="${L.anchor}" style="fill:var(--ink)">${Charts.esc(p.label)}</text>`;
   });
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img">${g}</svg>`;
 };
