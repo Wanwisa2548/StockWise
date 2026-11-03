@@ -9,22 +9,21 @@ Pages.sales = {
     const state = { pid: 0, samplePid: d.products[0].id, sampleDate: d.dates[d.dates.length - 1] };
 
     root.innerHTML = `
-      ${BakeryVisuals.heading('sales', 'วิเคราะห์ยอดขายรายวัน', `วิเคราะห์ยอดขายย้อนหลัง ${d.dates.length} วัน · ${App.fmt(d.transactions.length)} รายการ · ${App.fmt(new Set(d.transactions.map(t => t.sold_at.slice(0, 10) + '|' + t.receipt_no)).size)} บิล เพื่อค้นหาช่วงเวลาขายดี`)}
+      ${BakeryVisuals.heading('sales', 'วิเคราะห์ยอดขาย', `ดูช่วงเวลาขายดีจากยอดขายย้อนหลัง ${d.dates.length} วัน`)}
       <div class="card">
-        <div class="controls"><label>สินค้า <select id="s-prod"><option value="0">ทุกสินค้า</option>${App.productOptions(0)}</select></label></div>
+        <div class="controls"><label>สินค้าในกราฟ <select id="s-prod"><option value="0">ทุกสินค้า</option>${App.productOptions(0)}</select></label></div>
         <div id="s-kpi" class="grid cols-4" style="margin-bottom:12px"></div>
         <h3>ยอดขายเฉลี่ยรายชั่วโมง (ชิ้นต่อวัน)</h3><div id="s-bars"></div>
       </div>
-      <div class="card"><h3>Heatmap ยอดขายเฉลี่ย วัน × ชั่วโมง (ชิ้น)</h3><div id="s-heat"></div></div>
-      <div class="card">
-        <h3>ตัวอย่างการรวมรายการขายเป็นยอดรายวัน</h3>
+      <div class="card"><h3>ช่วงเวลาขายดีแยกตามวัน</h3><p class="dss-note">สีเข้มหมายถึงยอดขายเฉลี่ยสูง · ชิ้นต่อวัน</p><div id="s-heat"></div></div>
+      <details class="card"><summary>ตรวจที่มาของยอดขายรายวัน</summary>
         <div class="controls">
           <label>สินค้า <select id="a-prod">${App.productOptions(state.samplePid)}</select></label>
           <label>วันที่ <select id="a-date">${d.dates.slice().reverse().map(x => `<option value="${x}">${App.thaiDate(x)}</option>`).join('')}</select></label>
         </div>
         <div id="s-agg"></div>
-      </div>
-      <div class="card"><h3>รายการขายล่าสุด</h3><div class="table-wrap" id="s-recent"></div></div>`;
+      </details>
+      <details class="card"><summary>20 รายการขายล่าสุดของทุกสินค้า</summary><div class="table-wrap" id="s-recent"></div></details>`;
 
     const $ = id => root.querySelector(id);
 
@@ -34,8 +33,8 @@ Pages.sales = {
       const peak = Calc.peakHour(hours), start = Calc.promoStartHour(hours);
       const avg = hourRange.map(h => hours[h] / nDays);
       $('#s-kpi').innerHTML = `
-        <div class="kpi blue"><div class="label">ชั่วโมงขายดีที่สุด</div><div class="value">${hh(peak)}</div><div class="note">เฉลี่ย ${App.fmt(hours[peak] / nDays, 1)} ชิ้น/วัน</div></div>
-        <div class="kpi orange"><div class="label">เวลาเริ่มโปรที่เหมาะสม</div><div class="value">${hh(start)}</div><div class="note">หลังจากนี้ยังเหลือยอดขาย ≥ 40% ของวัน</div></div>
+        <div class="kpi blue"><div class="label">ชั่วโมงขายดีที่สุด</div><div class="value">${hours.some(v => v > 0) ? hh(peak) : '—'}</div><div class="note">เฉลี่ย ${App.fmt(hours[peak] / nDays, 1)} ชิ้น/วัน</div></div>
+        <div class="kpi orange"><div class="label">เวลาเริ่มโปรที่แนะนำ</div><div class="value">${start === null ? '—' : hh(start)}</div><div class="note">คงเหลือยอดขายหลังเวลานี้อย่างน้อย 40%</div></div>
         <div class="kpi"><div class="label">ยอดขายเฉลี่ยต่อวัน</div><div class="value">${App.fmt(hours.reduce((a, b) => a + b, 0) / nDays, 1)}</div><div class="note">ชิ้น</div></div>`;
       $('#s-bars').innerHTML = Charts.bars({
         ...Charts.fit($('#s-bars'), 0.28, 220, 380),
@@ -61,8 +60,7 @@ Pages.sales = {
         <div><div class="kpi blue"><div class="label">ยอดขายรายวันของ ${App.esc(p.name)} (${App.thaiDate(state.sampleDate)})</div>
           <div class="value">${App.fmt(fromView)} ${App.esc(p.unit)}</div>
           <div class="note">${fromView === total ? 'ตรงกับผลรวมจากรายการขาย' : 'ไม่ตรงกับผลรวม!'}</div></div>
-          <p class="formula" style="margin-top:12px">ยอดรายวันที่ใช้พยากรณ์ได้จากการรวมรายการขายด้วย SQL:<br>
-          <code>SELECT product_id, CAST(sold_at AS DATE), SUM(qty)<br>FROM sales_transactions GROUP BY product_id, CAST(sold_at AS DATE)</code></p></div></div>`;
+          <p class="muted" style="margin-top:12px">ผลรวมจำนวนขายของสินค้าในวันที่เลือก ใช้เป็นข้อมูลพยากรณ์</p></div></div>`;
     }
 
     // --- รายการขายล่าสุด ---

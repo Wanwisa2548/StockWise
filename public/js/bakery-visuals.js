@@ -52,8 +52,7 @@ const BakeryVisuals = {
   },
 
   heading(key, title, description) {
-    const labels = { sales: 'SALES JOURNAL', forecast: 'A LITTLE FORESIGHT', order: 'THE NEXT BATCH', expiry: 'FRESHNESS MATTERS', cluster: 'FIND YOUR PRODUCT FAMILIES', manage: 'YOUR BAKERY COLLECTION', evaluation: 'MEASURE THE DECISION', presentation: 'EXPLAIN THE DECISION' };
-    return `<div class="module-heading"><div class="module-heading-copy"><span class="module-eyebrow">${App.icon(App.tabs.find(t => t.key === key).icon)}${labels[key]}</span><h2>${App.esc(title)}</h2><p>${App.esc(description)}</p></div><div class="module-illustration">${this.scene(key)}</div></div>`;
+    return `<div class="module-heading"><div class="module-heading-copy"><h2>${App.esc(title)}</h2><p>${App.esc(description)}</p></div><div class="module-illustration">${this.scene(key)}</div></div>`;
   },
 
   empty(icon, title, description) {

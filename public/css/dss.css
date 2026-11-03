@@ -1,4 +1,13 @@
 .dss-note { color: var(--ink-2); font-size: 12px; line-height: 1.8; margin: 12px 0; white-space: normal; }
+.nav-section { font-size: 10px; color: var(--muted); padding: 22px 14px 4px; }
+.page details > summary { cursor: pointer; color: var(--accent); font-weight: 500; }
+.page details[open] > summary { margin-bottom: 18px; }
+.inline-details { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+.inline-details > .controls,.inline-details > .grid { margin-top: 18px; }
+.dashboard-details > summary { padding: 16px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.dashboard-details[open] > summary { margin-bottom: 20px; }
+.cell-note { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; }
+@media (max-width: 760px) { .nav-section { display: none; } }
 .dss-callout.demo-banner { margin: 16px var(--gutter) 0; background: var(--warn-soft); border-color: var(--warn); }
 .dss-callout { padding: 16px; background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 6px; margin: 14px 0; line-height: 1.9; }
 .dss-callout .row-actions { margin-top: 12px; flex-wrap: wrap; }

@@ -6,27 +6,26 @@ Pages.cluster = {
     const d = App.data, S = App.settings;
     if (!S.k) S.k = 3;
     root.innerHTML = `
-      ${BakeryVisuals.heading('cluster', 'จัดกลุ่มสินค้าเบเกอรี่', 'จัดกลุ่มขนมอบตามยอดขายและอายุสินค้า ด้วย K-means เพื่อเลือกแผนสต็อกที่เหมาะกับแต่ละกลุ่ม')}
+      ${BakeryVisuals.heading('cluster', 'จัดกลุ่มสินค้า', 'ใช้ยอดขายและอายุสินค้าแนะนำแนวทางดูแลสต็อกแต่ละกลุ่ม')}
       <div class="card">
         <div class="controls"><label>จำนวนกลุ่ม (k)
           <span class="seg" id="c-k">${[2, 3, 4, 5].map(k => `<button data-k="${k}">${k}</button>`).join('')}</span></label>
           <span id="c-elbow" class="muted"></span></div>
-        <div class="grid cols-2">
-          <div><h3>กราฟกระจาย: ยอดขายต่อวัน × อายุสินค้า</h3><div id="c-scatter"></div></div>
-          <div><h3>กราฟ Elbow (SSE ที่แต่ละ k)</h3><div id="c-elbow-chart"></div></div>
-        </div>
+        <div><h3>ยอดขายต่อวัน × อายุสินค้า</h3><div id="c-scatter"></div></div>
+        <details><summary>เหตุผลที่แนะนำจำนวนกลุ่ม</summary><div id="c-elbow-chart"></div></details>
       </div>
       <div id="c-cards" class="grid cols-3"></div>
-      <div class="card">
-        <div class="bar-actions"><h3>บันทึกผลจัดกลุ่ม</h3>
+      <details class="card"><summary>ผลจัดกลุ่มที่บันทึกไว้</summary>
+        <div class="bar-actions">
           <button type="button" class="btn" id="c-save"></button></div>
         <p class="muted" id="c-saved-note"></p>
         <div class="table-wrap" id="c-saved"></div>
-      </div>
-      <div class="card formula">
+      </details>
+      <details class="card formula"><summary>วิธีจัดกลุ่มและความหมายคะแนน</summary>
         ตัวแปร: log10(ยอดขายพยากรณ์ต่อวัน) และ log10(อายุสินค้า) ปรับเป็น z-score · k-means++ รัน 20 รอบ เลือกรอบที่ SSE ต่ำสุด<br>
         Elbow = k ที่ผลต่างอันดับสองของ SSE มากที่สุด · ตั้งชื่อกลุ่มจากค่าเฉลี่ยเรขาคณิต (geometric mean) ของอายุและยอดขาย
-      </div>`;
+        <p class="dss-note">Silhouette อยู่ระหว่าง −1 ถึง 1 ยิ่งสูงยิ่งแยกกลุ่มได้ดี ค่า — คือวัดไม่ได้ ไม่ใช่เปอร์เซ็นต์ความแม่นยำ · นโยบายกลุ่มเป็นกฎแนะนำ ไม่เปลี่ยนแผนสั่งซื้ออัตโนมัติ · ก่อนแปลง log ใช้ 0.001 แทนยอดศูนย์เฉพาะพิกัด</p>
+      </details>`;
 
     const $ = id => root.querySelector(id);
     $('#c-k').onclick = e => { const b = e.target.closest('button'); if (b) { S.k = Number(b.dataset.k); update(); } };
@@ -65,7 +64,7 @@ Pages.cluster = {
       $('#c-elbow-chart').innerHTML = Charts.line({
         labels: r.sseByK.map((_, i) => 'k=' + (i + 1)), fmt: v => App.fmt(v, 1), ...Charts.fit($('#c-elbow-chart'), 0.75, 320, 520),
         series: [{ name: 'SSE', color: 'var(--ink)', values: r.sseByK, width: 2.4 }]
-      }) + `<p class="muted">SSE k=1…${r.sseByK.length}: ${r.sseByK.map(v => App.fmt(v, 2)).join(', ')}</p><p class="dss-note">Silhouette อยู่ระหว่าง −1 ถึง 1 ยิ่งสูงยิ่งแยกกลุ่มได้ดี ค่า — คือจำนวนกลุ่มไม่เหมาะกับการวัด · ไม่ใช่เปอร์เซ็นต์ความแม่นยำ · นโยบายรายกลุ่มเป็นกฎที่ผู้พัฒนากำหนด ใช้เพื่อแนะนำและยังไม่เปลี่ยน EOQ/ROP อัตโนมัติ · ใช้ยอดขาย 0 เป็น 0.001 เฉพาะก่อนแปลง log เพื่อให้คำนวณได้</p>`;
+      });
 
       $('#c-cards').innerHTML = r.groups.map(g => `
         <div class="card" style="border-top:4px solid ${C[g.id]};margin:0">

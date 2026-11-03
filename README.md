@@ -16,20 +16,19 @@ Stack: Node.js + Express + SQL Server · HTML/CSS/JavaScript · หน่วย�
 
 สาธิตสั่งซื้อ/รับของ/ตั้งโปรจริงให้ใช้ `npm start` กับฐาน Demo ที่แยกไว้ ส่วนโหมดจำลองใช้แสดงการวิเคราะห์และส่งออกได้
 
-## 10 หน้าของระบบ
+## 9 หน้าของระบบ
 
 | หน้า | สิ่งที่ทำ |
 |---|---|
 | ภาพรวมร้าน | KPI, คำแนะนำ, ช่วงคาดการณ์, EOQ, ใบคำนวณแทนค่าและ CSV |
-| สรุปผล | ภาพรวมการวิเคราะห์รวมในหน้าเดียว |
 | วิเคราะห์ยอดขาย | ยอดรายวัน/รายชั่วโมง และ heatmap |
 | พยากรณ์ยอดขาย | MA/ES ปรับเอง, เปรียบเทียบ 9 วิธี/พารามิเตอร์, เลือกโมเดลรายสินค้า, MAE/RMSE/MAPE |
-| วางแผนจัดซื้อ | EOQ, Safety Stock, ROP, เหตุผลรายสินค้า, ใบสั่งซื้อ/รับของ |
-| จัดการของใกล้หมดอายุ | FEFO, จำนวนเสี่ยง, กฎส่วนลด, เวลาเริ่มโปร |
+| แผนสั่งซื้อ | EOQ, Safety Stock, ROP, เหตุผลรายสินค้า, ใบสั่งซื้อ/รับของ |
+| สินค้าใกล้หมดอายุ | FEFO, จำนวนเสี่ยง, กฎส่วนลด, เวลาเริ่มโปร |
 | จัดกลุ่มสินค้า | K-means++, SSE/Elbow, Silhouette และนโยบายที่เป็นกฎแนะนำ |
 | สินค้าและสต็อก | แก้ข้อมูลประกอบและล็อตในฐานข้อมูล |
-| ประเมินผล DSS | แผนสั่งคงที่เทียบ DSS บน holdout เดียวกัน คิดหมดอายุ/Lead Time ปรับสมมติฐานและส่งออก |
-| สไลด์และ Demo | สไลด์ไทย 9 หน้าจากข้อมูลที่โหลด พิมพ์/บันทึก PDF ผ่านเบราว์เซอร์ ส่งออก HTML ออฟไลน์ |
+| เปรียบเทียบแผนสต็อก | แผนสั่งคงที่เทียบ DSS บน holdout เดียวกัน คิดหมดอายุ/Lead Time ปรับสมมติฐานและส่งออก |
+| สไลด์นำเสนอ | สไลด์ไทย 9 หน้าจากข้อมูลที่โหลด พิมพ์/บันทึก PDF ผ่านเบราว์เซอร์ ส่งออก HTML ออฟไลน์ |
 
 ## โมเดลและการประเมิน
 
@@ -41,7 +40,7 @@ Stack: Node.js + Express + SQL Server · HTML/CSS/JavaScript · หน่วย�
 - ตารางเปรียบเทียบเป็น Test ที่แยกไว้ ส่วน KPI/forecasts เป็น rolling backtest ทั้งช่วง จึงอาจต่างกัน
 - Confidence เป็นระดับเป้าหมายช่วงประมาณ ไม่ใช่ accuracy; Coverage คือผลครอบคลุมที่วัดย้อนหลัง
 
-[วิธีวิจัยและข้อจำกัด](docs/dss-methodology.md) · [ใบคำนวณ](docs/calculations.md) · [ตรวจข้อมูล CSV](docs/csv-audit.md) · [เตรียมนำเสนอ/Demo](docs/demo-guide.md)
+[ผลทบทวนฟีเจอร์และข้อความ](docs/ui-review.md) · [วิธีวิจัยและข้อจำกัด](docs/dss-methodology.md) · [ใบคำนวณ](docs/calculations.md) · [ตรวจข้อมูล CSV](docs/csv-audit.md) · [เตรียมนำเสนอ/Demo](docs/demo-guide.md)
 
 ## ข้อมูลและฐานข้อมูล
 
@@ -59,7 +58,7 @@ demo-data.js                    explicit read-only synthetic demo
 routes/                         APIs and recorded decisions
 database/schema.sql             empty schema
 public/js/calc.js               models, evaluation, policies, EOQ/ROP, FEFO, K-means
-public/js/pages/                10 pages including evaluation and printable slides
+public/js/pages/                9 pages including evaluation and printable slides
 public/js/calculation-details.js worked calculations and offline export
 docs/                           methodology, provenance, demo script
 tests/                          numerical and leakage checks

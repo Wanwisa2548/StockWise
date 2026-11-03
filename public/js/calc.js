@@ -226,24 +226,6 @@ Calc.addDays = function (s, n) {
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
 };
 
-// จำลองสต็อก 30 วัน: ขายวันละ d ชิ้น พอสต็อกลงถึง ROP ก็สั่งครั้งละ qty ชิ้น ของมาถึงหลัง L วัน
-// (ไม่คิดการหมดอายุ ใช้ดูจังหวะการสั่งเท่านั้น)
-Calc.simulateStock = function (plan, leadTime, days = 30) {
-  const level = [plan.stock];
-  const orders = [];                   // { day: วันที่สั่ง, arrive: วันที่ของถึง, qty }
-  let pending = null;
-  for (let t = 0; t < days; t++) {
-    if (!pending && level[t] <= plan.rop && plan.qty > 0) {   // ถึงจุดสั่งซื้อ
-      pending = { day: t, arrive: t + leadTime, qty: plan.qty };
-      orders.push(pending);
-    }
-    let next = Math.max(0, level[t] - plan.d);
-    if (pending && pending.arrive === t + 1) { next += pending.qty; pending = null; }
-    level.push(next);
-  }
-  return { level, orders };
-};
-
 /* ============================================================
  * 3) สินค้าใกล้หมดอายุ (FEFO + ส่วนลด + เวลาเริ่มโปร)
  * ============================================================ */
@@ -533,9 +515,9 @@ Calc.orderExplanation = function (p, fc, plan, pending) {
   const n = v => Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
   const timing = plan.d <= 0 ? 'ไม่มีความต้องการที่พยากรณ์ จึงไม่แนะนำสั่ง'
     : pending ? `มีใบสั่งซื้อรอรับ ${pending.qty} หน่วย ถึง ${pending.expected_date} จึงไม่สั่งซ้ำ`
-    : plan.stock <= plan.rop ? `ควรสั่งวันนี้ เพราะสต็อกใช้ได้ ${n(plan.stock)} ≤ ROP ${n(plan.rop)}`
-    : `ยังไม่ถึงจุดสั่งซื้อ: สต็อกใช้ได้ ${n(plan.stock)} > ROP ${n(plan.rop)} คาดถึงเกณฑ์ใน ${plan.days} วัน`;
-  return `${timing} · ${Calc.modelLabel(fc.method, fc.param)} พยากรณ์ ${n(fc.d)} ${p.unit}/วัน · RMSE ทั้งช่วง ${fc.metrics.rmse === null ? 'ยังไม่มีข้อมูล' : n(fc.metrics.rmse)} · EOQ ${n(plan.eoq)}${plan.limited ? ` จำกัดที่ยอดขาย × อายุ ${p.shelf_life_days} วัน` : ''} → ${plan.qty} ${p.unit}/ครั้ง · ไม่รวมล็อตหมดอายุหรือยังไม่รับเข้า · จำนวนสั่งเป็นแนวทาง ไม่รับประกันว่าจะขายหมด`;
+    : plan.stock <= plan.rop ? `ควรสั่งวันนี้ เพราะสต็อกใช้ได้ ${n(plan.stock)} ถึงจุดสั่งซื้อแล้ว`
+    : `สต็อกใช้ได้ ${n(plan.stock)} ยังสูงกว่าจุดสั่งซื้อ คาดถึงเกณฑ์ใน ${plan.days} วัน`;
+  return `${timing} · จุดสั่งซื้อ (ROP) ${n(plan.rop)} · สต็อกสำรอง (Safety Stock) ${n(plan.safety)} · ${Calc.modelLabel(fc.method, fc.param)} พยากรณ์ ${n(fc.d)} ${p.unit}/วัน · RMSE ทั้งช่วง ${fc.metrics.rmse === null ? 'ยังไม่มีข้อมูล' : n(fc.metrics.rmse)} · EOQ ${n(plan.eoq)}${plan.limited ? ` จำกัดที่ยอดขาย × อายุ ${p.shelf_life_days} วัน` : ''} → ${plan.qty} ${p.unit}/ครั้ง · ไม่รวมล็อตหมดอายุหรือยังไม่รับเข้า · จำนวนสั่งเป็นแนวทาง ไม่รับประกันว่าจะขายหมด`;
 };
 
 if (typeof module !== 'undefined') module.exports = Calc;

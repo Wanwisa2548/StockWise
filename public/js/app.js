@@ -1,4 +1,4 @@
-// app.js — โหลดข้อมูลจาก /api/data แล้วสลับแท็บทั้ง 8 หน้า
+// app.js — โหลดข้อมูลและสลับหน้าการทำงาน/เครื่องมือวิเคราะห์
 // แต่ละหน้าลงทะเบียนตัวเองที่ Pages.<key> = { render(root) }
 const Pages = {};
 
@@ -8,15 +8,14 @@ const App = {
   settings: { method: 'ma', n: 7, alpha: 0.30, confidenceLevel: 0.95, serviceLevel: 0.95, holdRate: 0.25 },
   tabs: [
     { key: 'overview', label: 'ภาพรวมร้าน', icon: 'overview' },
-    { key: 'summary',  label: 'สรุปผล', icon: 'sparkle' },
     { key: 'sales',    label: 'วิเคราะห์ยอดขาย', icon: 'sales' },
     { key: 'forecast', label: 'พยากรณ์ยอดขาย', icon: 'forecast' },
-    { key: 'order',    label: 'วางแผนจัดซื้อ', icon: 'order', badge: true },
-    { key: 'expiry',   label: 'จัดการของใกล้หมดอายุ', icon: 'expiry', badge: true },
-    { key: 'cluster',  label: 'จัดกลุ่มสินค้า', icon: 'cluster' },
+    { key: 'order',    label: 'แผนสั่งซื้อ', icon: 'order', badge: true },
+    { key: 'expiry',   label: 'สินค้าใกล้หมดอายุ', icon: 'expiry', badge: true },
     { key: 'manage',   label: 'สินค้าและสต็อก', icon: 'manage' },
-    { key: 'evaluation', label: 'ประเมินผล DSS', icon: 'forecast' },
-    { key: 'presentation', label: 'สไลด์และ Demo', icon: 'receipt' }
+    { key: 'cluster',  label: 'จัดกลุ่มสินค้า', icon: 'cluster', section: 'วิเคราะห์และนำเสนอ' },
+    { key: 'evaluation', label: 'เปรียบเทียบแผนสต็อก', icon: 'forecast' },
+    { key: 'presentation', label: 'สไลด์นำเสนอ', icon: 'receipt' }
   ],
   current: 'overview',
 
@@ -31,6 +30,10 @@ const App = {
   },
 
   // ใบสั่งซื้อที่ยังรอของของสินค้านั้น (ถ้ามี)
+  lockWrites(root) {
+    if (!this.data.source?.readOnly) return;
+    root.querySelectorAll('#f-save,#c-save,[data-po],[data-recv],[data-cancel],[data-del-po],[data-promo-lot],[data-del-promo],[data-save-product],[data-save-lot],[data-del-lot],#m-add-btn').forEach(button => { button.disabled = true; button.title = 'โหมดสาธิตไม่บันทึกฐานข้อมูล'; });
+  },
   pendingOrder(pid) { return (this.data.orders || []).find(o => o.product_id === pid && o.status === 'ordered'); },
   // โปรโมชั่นที่ตั้งไว้ของล็อตนั้น (ถ้ามี)
   promoOfLot(lotId) { return (this.data.promotions || []).find(p => p.lot_id === lotId); },
@@ -79,7 +82,7 @@ const App = {
     document.querySelector('.dataset-pill').innerHTML = json.source?.mode === 'demo' ? 'DEMO · SYNTHETIC DATA' : '<i></i> French Bakery Daily Sales';
     if (json.source?.mode === 'demo') {
       const banner = document.createElement('div'); banner.id = 'data-source-banner'; banner.className = 'dss-callout demo-banner';
-      banner.textContent = 'โหมด Demo · ข้อมูลจำลองสำหรับสาธิต ไม่ใช่ข้อมูล CSV จริง · ไม่เชื่อมต่อและไม่บันทึกฐานข้อมูล';
+      banner.textContent = 'โหมดสาธิต · ใช้ข้อมูลจำลองและไม่บันทึกฐานข้อมูล';
       document.querySelector('.topbar').insertAdjacentElement('afterend', banner);
     }
     this.updateBadges();
@@ -151,7 +154,7 @@ const App = {
   buildTabs() {
     const nav = document.getElementById('tabs');
     nav.setAttribute('aria-orientation', window.innerWidth <= 760 ? 'horizontal' : 'vertical');
-    nav.innerHTML = this.tabs.map((t, i) => `<button id="tab-${t.key}" data-key="${t.key}" role="tab" aria-controls="page" aria-selected="false" tabindex="${i ? -1 : 0}">${this.icon(t.icon, 'nav-icon')}<span>${t.label}</span>${t.badge ? ` <span class="cnt" id="cnt-${t.key}" hidden></span>` : ''}</button>`).join('');
+    nav.innerHTML = this.tabs.map((t, i) => `${t.section ? `<span class="nav-section" role="presentation">${t.section}</span>` : ''}<button id="tab-${t.key}" data-key="${t.key}" role="tab" aria-controls="page" aria-selected="false" tabindex="${i ? -1 : 0}">${this.icon(t.icon, 'nav-icon')}<span>${t.label}</span>${t.badge ? ` <span class="cnt" id="cnt-${t.key}" hidden></span>` : ''}</button>`).join('');
     nav.addEventListener('click', e => {
       const b = e.target.closest('button'); if (b) this.show(b.dataset.key);
     });
@@ -186,9 +189,7 @@ const App = {
     const page = Pages[key];
     if (page) page.render(root);
     else root.innerHTML = '<div class="card muted">หน้านี้กำลังพัฒนา</div>';
-    if (this.data.source?.readOnly) {
-      root.querySelectorAll('#f-save,#c-save,[data-po],[data-recv],[data-cancel],[data-del-po],[data-promo-lot],[data-del-promo],[data-save-product],[data-save-lot],[data-del-lot],#m-add-btn').forEach(button => { button.disabled = true; button.title = 'Demo ใช้ข้อมูลจำลองและไม่บันทึกฐานข้อมูล'; });
-    }
+    this.lockWrites(root);
     if (this.data) this.updateBadges();
     window.scrollTo(0, 0);
   },
