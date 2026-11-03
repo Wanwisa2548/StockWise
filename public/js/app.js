@@ -49,7 +49,7 @@ const App = {
 
   // กดปุ่มแล้วเรียก API → โหลดข้อมูลใหม่ → วาดหน้าเดิมโดยคงตำแหน่งการเลื่อน; ผิดพลาดแจ้งข้อความจากเซิร์ฟเวอร์
   async act(btn, call, okText) {
-    if (btn) btn.disabled = true;
+    if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
     try {
       await call();
       await this.loadData();
@@ -60,6 +60,8 @@ const App = {
     } catch (err) {
       if (btn) btn.disabled = false;
       this.toast(err.message, false);
+    } finally {
+      if (btn) btn.removeAttribute('aria-busy');
     }
   },
 
@@ -79,7 +81,11 @@ const App = {
     }
     this.data = json;
     document.getElementById('data-source-banner')?.remove();
-    document.querySelector('.dataset-pill').innerHTML = json.source?.mode === 'demo' ? 'DEMO · SYNTHETIC DATA' : '<i></i> French Bakery Daily Sales';
+    const sourcePill = document.querySelector('.dataset-pill');
+    sourcePill.textContent = json.source?.mode === 'demo' ? 'DEMO · SYNTHETIC DATA'
+      : json.source?.server && json.source?.database ? `SQL · ${json.source.server} / ${json.source.database}` : 'ข้อมูลจาก SQL Server';
+    sourcePill.title = json.source?.mode === 'demo' ? 'ข้อมูลจำลอง ไม่ใช่ Bakery sales.csv'
+      : `ยอดขาย ${json.dates[0]}–${json.dates.at(-1)} · ${json.products.length} สินค้า · ${json.transactions.length.toLocaleString()} รายการในช่วงวิเคราะห์`;
     if (json.source?.mode === 'demo') {
       const banner = document.createElement('div'); banner.id = 'data-source-banner'; banner.className = 'dss-callout demo-banner';
       banner.textContent = 'โหมดสาธิต · ใช้ข้อมูลจำลองและไม่บันทึกฐานข้อมูล';
@@ -228,9 +234,10 @@ const App = {
     document.getElementById('refresh-data').onclick = async e => {
       const btn = e.currentTarget;
       btn.disabled = true;
+      btn.setAttribute('aria-busy', 'true');
       try { await this.loadData(); this.show(this.current); this.toast('อัปเดตข้อมูลจากฐานข้อมูลแล้ว'); }
       catch (err) { this.toast(err.message, false); }
-      finally { btn.disabled = false; }
+      finally { btn.disabled = false; btn.removeAttribute('aria-busy'); }
     };
     const root = document.getElementById('page');
     root.innerHTML = '<div class="loading">กำลังโหลดข้อมูลจากฐานข้อมูล…</div>';

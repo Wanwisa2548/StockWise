@@ -44,6 +44,7 @@ Pages.manage = {
     // เรียก API แล้วรีโหลดข้อมูลทุกหน้า; ถ้าผิดพลาดแสดงข้อความที่ด้านบน (ไม่ปิดฟอร์ม)
     const run = async (btn, okText, call) => {
       btn.disabled = true;
+      btn.setAttribute('aria-busy', 'true');
       try {
         await call();
         await App.loadData();
@@ -53,6 +54,8 @@ Pages.manage = {
         btn.disabled = false;
         root.querySelector('#m-msg').innerHTML = `<div class="error">${App.esc(err.message)}</div>`;
         window.scrollTo(0, 0);
+      } finally {
+        btn.removeAttribute('aria-busy');
       }
     };
 

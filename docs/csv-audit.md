@@ -8,6 +8,18 @@ SHA-256: `af5eede55b6eb2efb6bebb0e6dd1a51568c7eb73554d2f8ad2563081025681b2`.
 
 ## Result and limits
 
+### Fresh connection reconciliation — 2026-11-03
+
+The running web API was compared with the configured SQL Server live. The API's 10 bakery product IDs/SKUs/names match `PAPENGIE / StockWise`. The user's SSMS screenshot instead showed `MSI / StockWise` containing the legacy minimart catalogue: these are different SQL Server databases with the same database name. The user selected PAPENGIE as the retained primary source; no database contents were changed.
+
+The supplied CSV's SHA-256 remains `af5eede55b6eb2efb6bebb0e6dd1a51568c7eb73554d2f8ad2563081025681b2`. Fresh read-only SQL controls match the CSV: 138,577 imported positive-quantity rows for the 10 selected articles; the active 2022-08-06 through 2022-09-30 window has 16,068 rows, 29,174 units, and €37,855.10. Per-product row counts also match.
+
+A full multiset comparison of all 16,068 active-window transactions matched after explicit import normalization: CSV article names map to the corresponding SQL SKUs; `273319.0` ticket numbers map to SQL receipt `T273319`; quantity becomes numeric and prices become integer euro cents. Canonical rows contain `[date, HH:MM, normalized ticket, sku, quantity, price_cents]`; duplicates are retained and rows are sorted before SHA-256 hashing. Both sources produce `8501286586b42661b11c6b6999044c819fe6bd30ee5ca255e47e3f0056970387`. This verifies these transaction fields at minute precision for the active window, not SQL row IDs, full-history row-by-row equivalence, inventory, costs, or supplier assumptions absent from the CSV.
+
+The API now returns the actual `SERVERPROPERTY('ServerName')` and `DB_NAME()` under `source`; the page header displays that identity. `database/verify-data-source.sql` contains read-only identity, catalogue, and count controls for opening SSMS against the same server. No usernames, passwords, or connection strings are included in the API metadata.
+
+### Historical audit — 2026-11-02
+
 Independent calculations from the supplied CSV match the latest successful database/API and browser verification in this conversation, under the application's selected-product and positive-quantity filters. A fresh SQL connection timed out during this audit, including an attempt outside the sandbox, so current database rows could not be reconciled one by one against the file. These matching controls are not a claim that every current database row was re-read or that the import file's provenance was cryptographically verified.
 
 The application reads the connected SQL database, not the Downloads CSV directly. Editing the CSV alone will not change the dashboard.

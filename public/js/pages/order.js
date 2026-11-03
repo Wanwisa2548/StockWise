@@ -8,9 +8,9 @@ Pages.order = {
       ${BakeryVisuals.heading('order', 'แผนสั่งซื้อ', 'ตรวจจำนวนและวันที่แนะนำ ก่อนสร้างใบสั่งซื้อ')}
       <div class="card">
         <div class="controls">
-          <label>เป้าหมายมีสินค้าพร้อมขาย (Service Level)
+          <label>ระดับการให้บริการ (Service Level)
             <span class="seg" id="o-sl">${[0.90, 0.95, 0.99].map(v =>
-              `<button data-v="${v}" class="${S.serviceLevel === v ? 'active' : ''}">${v * 100}%</button>`).join('')}</span>
+              `<button data-v="${v}" class="${S.serviceLevel === v ? 'active' : ''}">${v * 100}% (z=${Calc.Z[v]})</button>`).join('')}</span>
           </label>
           <label><span>อัตราต้นทุนเก็บรักษา = <b id="o-hv">${Math.round(S.holdRate * 100)}%</b></span>
             <input id="o-h" type="range" min="10" max="50" step="5" value="${Math.round(S.holdRate * 100)}"></label>
@@ -45,15 +45,21 @@ Pages.order = {
       const rows = plans.slice().sort((a, b) => a.pl.days - b.pl.days).map(({ p, pl }) => `
         <tr data-plan-product="${p.id}" class="${pl.status === 'red' ? 'row-red' : ''}">
           <td>${BakeryVisuals.productCell(p)}<details class="dss-reason"><summary>เหตุผลและโมเดล</summary><p>${App.esc(Calc.orderExplanation(p, fcs[p.id], pl, App.pendingOrder(p.id)))}</p></details></td>
-          <td>${App.fmt(pl.stock)}</td><td>${App.fmt(pl.d, 1)}</td>
+          <td>${App.fmt(pl.d, 1)}</td>
+          <td data-eoq title="EOQ ตามสูตร ${App.fmt(pl.eoq, 6)} ${App.esc(p.unit)}/ครั้ง">${App.fmt(pl.eoq)}</td>
           <td><b>${App.fmt(pl.qty)}</b> ${App.esc(p.unit)}${pl.limited ? ' <span class="badge blue">จำกัดขายทัน</span>' : ''}</td>
-          <td><span class="badge ${pl.status}">${App.esc(Calc.orderLabel(pl))}</span></td>
+          <td data-safety-stock>${App.fmt(pl.safety, 1)}</td><td data-rop>${App.fmt(pl.rop, 1)}</td><td>${App.fmt(pl.stock)}</td>
+          <td data-order-when>${App.esc(pl.reason === 'ready'
+            ? pl.dueToday ? 'วันนี้' : `อีก ${pl.days} วัน (${App.shortDate(pl.orderDate)})`
+            : Calc.orderLabel(pl))}</td>
+          <td data-order-status><span class="badge ${pl.reason === 'pending' ? 'blue' : pl.status}">${App.esc(pl.reason === 'ready' ? pl.dueToday ? 'สั่งวันนี้' : pl.days <= 3 ? 'ใกล้ต้องสั่ง' : 'ปกติ' : Calc.orderLabel(pl))}</span></td>
           <td>${(() => { const po = App.pendingOrder(p.id);
             return po ? `<span class="badge blue">สั่งแล้ว · ถึง ${App.shortDate(po.expected_date)}</span>`
-                      : !pl.canOrder ? `<span class="muted">${pl.review ? 'ควรทบทวนก่อนสั่ง' : pl.reason === 'ready' ? 'ยังไม่ถึงวันสั่ง' : '—'}</span>` : `<button type="button" class="btn go" data-po="${p.id}" data-qty="${pl.qty}">สั่งซื้อ ${App.fmt(pl.qty)}</button>`; })()}</td>
+                      : pl.reason === 'ready' && !pl.canOrder ? `<button type="button" class="btn go secondary" disabled title="ถึงวันสั่งจึงคำนวณและเปิดให้สั่งซื้อ">สั่งซื้อ ${App.fmt(pl.qty)}</button>`
+                      : !pl.canOrder ? `<span class="muted">${pl.review ? 'ควรทบทวนก่อนสั่ง' : '—'}</span>` : `<button type="button" class="btn go" data-po="${p.id}" data-qty="${pl.qty}">สั่งซื้อ ${App.fmt(pl.qty)}</button>`; })()}</td>
         </tr>`).join('');
       $('#o-table').innerHTML = `<table><thead><tr>
-        <th>สินค้า</th><th>สต็อกใช้ได้</th><th>คาดขาย/วัน</th><th>แนะนำสั่ง/ครั้ง</th><th>ควรสั่งเมื่อ</th><th>ดำเนินการ</th>
+        <th>สินค้า</th><th>ขาย/วัน (d)</th><th title="จำนวนตามสูตร EOQ ก่อนปรับล็อตเดิมและอายุสินค้า">EOQ</th><th>จำนวนสั่ง</th><th>Safety Stock</th><th>ROP</th><th>สต็อก</th><th>ควรสั่งเมื่อ</th><th>สถานะ</th><th aria-label="ดำเนินการ"></th>
         </tr></thead><tbody>${rows}</tbody></table>`;
 
       // ใบสั่งซื้อที่บันทึกไว้

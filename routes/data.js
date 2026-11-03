@@ -19,6 +19,9 @@ function buildDates() {
 router.get('/data', async (req, res) => {
   try {
     const pool = await poolPromise;
+    const identity = (await pool.request().query(`
+      SELECT CONVERT(nvarchar(128), SERVERPROPERTY('ServerName')) AS server_name,
+             DB_NAME() AS database_name`)).recordset[0];
 
     // สินค้า (ไม่รวมสต็อก — สต็อกคำนวณจากล็อตฝั่งหน้าเว็บ)
     const products = (await pool.request().query(`
@@ -83,7 +86,8 @@ router.get('/data', async (req, res) => {
     const clusters = clRows.length
       ? clRows.filter(r => r.run_date === clRows[0].run_date && r.k === clRows[0].k) : [];
 
-    res.json({ today: SIM_TODAY, dates, products, dailySales, lots, transactions, orders, promotions, forecasts, clusters });
+    res.json({ source: { mode: 'database', server: identity.server_name, database: identity.database_name, readOnly: false, fetchedAt: new Date().toISOString() },
+      today: SIM_TODAY, dates, products, dailySales, lots, transactions, orders, promotions, forecasts, clusters });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

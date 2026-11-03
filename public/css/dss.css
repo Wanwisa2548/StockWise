@@ -11,6 +11,7 @@
 .dss-callout.demo-banner { margin: 16px var(--gutter) 0; background: var(--warn-soft); border-color: var(--warn); }
 .dss-callout { padding: 16px; background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 6px; margin: 14px 0; line-height: 1.9; }
 .dss-callout .row-actions { margin-top: 12px; flex-wrap: wrap; }
+.btn.model-in-use:disabled { opacity: 1; cursor: default; color: var(--accent); background: var(--accent-soft); border-color: var(--line-strong); }
 .dss-inputs { align-items: flex-end; margin: 16px 0; flex-wrap: wrap; }
 .dss-inputs input { width: 165px; padding: 9px; border: 1px solid var(--line-strong); border-radius: 5px; background: white; }
 .dss-reason { margin-top: 8px; width: 260px; font-size: 12px; white-space: normal; }
